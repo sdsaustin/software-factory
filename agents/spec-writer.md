@@ -26,4 +26,6 @@ AC2: ...
 ## Red-team notes    (full track only, when the job touches auth, permissions, tenant data, evidence or external input) 3-5 ways an attacker or a careless user could abuse the feature, each tied to an AC that prevents it or an Open decision
 ```
 
+Open decisions are expensive: each one stops the job for a human. Use them ONLY for product or policy choices that materially change scope or behavior and have no safe default (for example which formats to export, who may see the data). If a safe default exists, DECIDE it: put it under Assumptions with the default and its consequence, and the human can override it. Security hardening for untrusted input (output escaping, size limits, same-origin checks, rate or storage caps) is never an open decision: make it an acceptance criterion, and note any trade-off under Assumptions. Resource and abuse limits get a sensible default value in the AC.
+
 Rules: every AC must be verifiable by a test or a concrete check. Prefer fewer, sharper criteria. Surface unstated assumptions instead of burying them in code. If the test command is unknown, say so under Open decisions. Do not write code.
