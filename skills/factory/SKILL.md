@@ -32,7 +32,7 @@ Stages: `spec`, `build`, `review`, `triage`, `decision`, `needs-human`, `done`. 
 ## Loop
 1. **Spec** (stage `spec`): spawn `spec-writer` with the job id and request. Output: `factory/jobs/<id>/spec.md`, which declares `Track: quick|full`.
 2. **Readiness gate**: spec must have Intent, numbered Acceptance criteria, and a test command in Baseline. Non-empty "Open decisions" -> stage `needs-human`, then GRILL the human right away: invoke Skill `software-factory:grill` seeded with those decisions, log `factory/jobs/<id>/grill-log.md`, answers written to `factory/jobs/<id>/answers.md`; re-run spec-writer once with that file (it must treat answers as settled); if decisions remain, stay `needs-human`. Missing pieces -> re-run spec-writer once, then `needs-human`.
-3. **Build** (stage `build`, round 0): spawn `builder` named `builder-<id>` on branch `factory/<id>`. Output: `build.md`.
+3. **Build** (stage `build`, round 0): spawn `builder` named `builder-<id>` on branch `factory/<id>`. Output: `build.md`. After EVERY builder run (this round, patch rounds, rework) make sure the default branch is checked out again (`git switch <default_branch>`); builders tend to leave the repo on the job branch, which would break the next preflight or merge.
 4. **Review** (stage `review`, round N starting at 1): create `round-N/`.
    - `full` track: spawn `reviewer-security`, `reviewer-ux`, `reviewer-ui`, `reviewer-code` IN PARALLEL (one message). 
    - `quick` track: spawn only `reviewer-security` and `reviewer-code`; record ux/ui as `N/A`.
@@ -70,7 +70,7 @@ Inferred decisions are binding for specs and reviews like any other, but reviewe
 
 ## approve / rework / retro
 - `approve <id>`: only for `needs-human`. Show `decision.md` first. Merge, stage `done`, then commit factory state exactly as in Loop step 6.
-- `rework <id> <note>`: append note to `build.md` under `## Human rework`, resume `builder-<id>` via SendMessage (spawn a fresh `builder` named `builder-<id>` pointing at the files if it no longer exists), then run a new review round. Does not reset the round cap: a human rework grants two more rounds.
+- `rework <id> <note>`: append the note to `build.md` under `## Human rework` AND to `spec.md` under a dated heading `## Human amendments (override any conflicting statement above)`, because a human note changes the intent that reviewers and the approver judge against and must not leave the spec stale; resume `builder-<id>` via SendMessage (spawn a fresh `builder` named `builder-<id>` pointing at the files if it no longer exists), then run a new review round. Does not reset the round cap: a human rework grants two more rounds.
 - `retro` (also after every 5 done jobs): spawn `retro`; append its learnings section to `factory/learnings.md`; show the human its `CLAUDE.md` pitfall proposals and apply only if approved.
 
 ## Rules
