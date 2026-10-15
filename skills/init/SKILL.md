@@ -9,14 +9,14 @@ disable-model-invocation: true
 Set up the factory in the CURRENT project (the user's working directory), using the templates shipped with this plugin at `${CLAUDE_PLUGIN_ROOT}/templates`. If `${CLAUDE_PLUGIN_ROOT}` shows up unexpanded, locate the directory with `find ~/.claude/plugins -type d -path '*software-factory*/templates' | head -1`.
 
 ## Steps
-1. **Git**: if the directory is not a git repo, run `git init -b main` and tell the user. If the current branch is `master` and has no commits, offer to rename it to `main` (the factory merges into `main`). Do not rename a branch with history without asking.
+1. **Git**: if the directory is not a git repo, run `git init -b main` and tell the user. Otherwise detect the default branch (`git symbolic-ref --short refs/remotes/origin/HEAD` without `origin/`, else the current branch). Keep whatever it is called (`master`, `develop`, `trunk`...); never rename a branch. Record it as `default_branch` in `factory/board.json` after step 2 (set the field in the copied file; if board.json already existed with a value, leave it). Warn if the current branch is not the default branch, or the working tree is dirty, since jobs require both.
 2. **Factory files**: create `factory/` and `factory/jobs/` (with an empty `.gitkeep`). Copy each file from `templates/factory/` (`board.json`, `backlog.md`, `learnings.md`, `dashboard.html`, `userguide.html`) ONLY if it does not already exist. List which were created and which were skipped. Never overwrite; if a file exists and differs, say so and move on.
 3. **CLAUDE.md**: if `CLAUDE.md` does not contain the marker `software-factory:project-context`, append `templates/project-context.md` to it (create the file if missing, separated by a blank line). If the marker is present, leave it alone.
 4. **.gitignore**: ensure `.DS_Store` is listed; add nothing else. Do not ignore `factory/`; it is committed state.
 5. **Detect the stack (existing code only)**: if the project already has source files, look for the test, lint and build commands (package.json scripts, Makefile, pyproject/tox, Cargo.toml, go.mod, CI config). Run the test command once to confirm it works. Then propose filling in the `Running the project` section of `CLAUDE.md`, show the exact lines, and apply them only after the user agrees. Record only non-obvious facts there, not tech-stack lists. If there is no code yet, skip this step.
 6. **Report and next step**: print a short summary of what was created. Then recommend ONE next step:
    - Empty project, only a vision/idea: `/software-factory:factory plan <your vision>`.
-   - Existing project: confirm the test command in `CLAUDE.md`, then `/software-factory:factory <feature>`.
+   - Existing project: confirm the test command in `CLAUDE.md`, run `/software-factory:factory document` so agents know the existing architecture and decisions, then `/software-factory:factory <feature>`.
    Mention the dashboard: `cd factory && python3 -m http.server 8000`, then open `http://localhost:8000/dashboard.html`, and the guide at `factory/userguide.html`.
 7. Offer to commit the new files (`git add factory CLAUDE.md .gitignore`). Commit only if the user says yes.
 

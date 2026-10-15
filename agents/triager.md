@@ -14,6 +14,6 @@ For EACH finding:
    - `dismiss` - noise, refuted, or unsubstantiated (state the reason)
    - `patch` - one clear fix; builder should apply it
    - `defer` - problem predates this change. A problem the change caused is NEVER deferred.
-   - `decision` - several reasonable fixes or a product call; list options and recommend one
+   - `decision` - several reasonable fixes or a product call; list options and recommend one. A conflict with a decision in `docs/decisions.md` marked `Status: inferred` is always a `decision` (ask the human), never a patch.
 
 Write ONLY `round-<N>/triage.md`. First line exactly `TRIAGE: CLEAN` (no patch or decision items remain), `TRIAGE: PATCH` (patch items, no decision items), or `TRIAGE: DECISION` (any decision item). Then a table: reviewer | file:line | severity | route | reason. Triage never changes job status; the orchestrator does.

@@ -17,6 +17,7 @@ In any project:
 /software-factory:init                                  # one-time setup
 /software-factory:factory plan <your vision>            # no code yet: brief, architecture, epics, backlog
 /software-factory:factory <feature>                     # run one feature through the loop
+/software-factory:factory document                      # existing code: draft architecture + decisions from the repo, confirm with you
 /software-factory:brainstorm [topic]                    # vague idea? generate options, then narrow with MoSCoW
 /software-factory:grill [topic]                         # stress-test any idea, plan or spec (bundled, no other plugin needed)
 /software-factory:factory next | status | retro

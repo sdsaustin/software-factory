@@ -15,17 +15,18 @@ You are the orchestrator. You coordinate the loop, spawn every agent, and are th
 ## Commands
 - `/factory <feature>`: new job. `/factory next`: first unchecked item in `factory/backlog.md` (tick it when started).
 - `/factory approve <id>`: merge a `needs-human` job. `/factory rework <id> <note>`: send back to the builder with the note.
+- `/factory document`: for an existing codebase, draft `docs/architecture.md` and `docs/decisions.md` from the code and git history, then confirm with you. See **Document command**.
 - `/software-factory:brainstorm [topic]` (separate skill): generate and narrow options when an idea is vague.
 - `/software-factory:grill [topic]` (separate skill): stress-test any plan or idea, one round of questions at a time.
 - `/factory status`: print the board. `/factory retro`: run the retro agent.
 - `/factory plan <vision>` (or `/factory plan` to continue/resume): plan a whole product from a vision. See **Plan command**.
 
 ## board.json
-`{"version":1,"jobs":[{"id","title","track":"quick|full","stage","round","reviews":{"1":{"security":"PASS|CHANGES|pending","ux":..,"ui":..,"code":..,"triage":"CLEAN|PATCH|DECISION|pending"}},"decision":"APPROVE|ESCALATE|null","branch","updated"}]}`
+`{"version":1,"default_branch":"<name>","jobs":[{"id","title","track":"quick|full","stage","round","reviews":{"1":{"security":"PASS|CHANGES|pending","ux":..,"ui":..,"code":..,"triage":"CLEAN|PATCH|DECISION|pending"}},"decision":"APPROVE|ESCALATE|null","branch","updated"}]}`
 Stages: `spec`, `build`, `review`, `triage`, `decision`, `needs-human`, `done`. Update it at every transition (read, modify, write whole file). Job id: `NNN-short-slug`, NNN = next integer.
 
 ## Preflight (every run)
-1. Default branch is `main`. Working tree must be clean; if not, stop and tell the human.
+1. **Default branch**: read `default_branch` from `board.json`. If it is null or missing, detect it (`git symbolic-ref --short refs/remotes/origin/HEAD` minus `origin/`; else the checked-out branch if it is `main`, `master`, `develop` or `trunk`; else ask the human), confirm it exists locally, and write it to `board.json`. Never assume `main`. Wherever this file says "the default branch" or `main`, it means this value. The working tree must be clean and the default branch checked out; if not, stop and tell the human.
 2. `CLAUDE.md` Project context must have a test command. If it is still `<TBD>`, the spec-writer may fill it in Baseline only if the stack exists; otherwise the job goes `needs-human` (reason: no test command). Exception: the scaffold job (first item after `/factory plan`) may have no test command yet; its acceptance criteria must establish one, and its Baseline is "none (empty project)".
 
 ## Loop
@@ -40,7 +41,7 @@ Stages: `spec`, `build`, `review`, `triage`, `decision`, `needs-human`, `done`. 
    - `TRIAGE: CLEAN` -> go to Decision.
    - `TRIAGE: DECISION` -> `needs-human` (list the decision items for the human).
    - `TRIAGE: PATCH` -> if N < 2, resume `builder-<id>` via SendMessage pointing at `round-N/triage.md`, then start round N+1. If N == 2, go to Decision (approver will likely ESCALATE).
-6. **Decision** (stage `decision`): spawn `approver`. First line of `decision.md`: `APPROVE` -> merge `factory/<id>` into `main` (`git merge --no-ff`), stage `done`, then offer a retro. `ESCALATE` -> stage `needs-human`.
+6. **Decision** (stage `decision`): spawn `approver`. First line of `decision.md`: `APPROVE` -> merge `factory/<id>` into the default branch (`git merge --no-ff`; if the repo has a protected default branch or an `origin` with required PRs, push the branch and tell the human to open a PR instead of merging locally), stage `done`, then offer a retro. `ESCALATE` -> stage `needs-human`.
 7. Never skip reviews, never merge without APPROVE or `/factory approve`.
 
 ## Plan command
@@ -58,6 +59,14 @@ Use when there is a vision but no backlog or stack (BMAD's Clarify -> Plan). Thr
 At every gate the human can approve, or give notes. Save notes to `docs/plan-notes.md` (append, dated) and re-run that pass; at most 3 re-runs per pass before asking the human how to proceed. Do not start the next pass without approval.
 
 Context: from now on all agents also read `docs/vision.md`, `docs/architecture.md`, `docs/decisions.md` and `docs/epics.md` when they exist. When a backlog item carries an `[E<n>]` tag, put it in the job's board entry as `epic`. When the last item of an epic is merged, run the retro for that epic and check its "done when" items in `docs/epics.md` (report which hold; do not edit the file).
+
+## Document command
+Use on a project that already has code and no `docs/architecture.md`/`docs/decisions.md` (BMAD's project-context idea, extended). Single pass with an approval gate. Track in `board.json` as `"document":"running|awaiting-approval|done"`.
+1. Spawn `planner` (PASS DOC). It writes `docs/architecture.md`, `docs/decisions.md` (all marked `Status: inferred`), `docs/open-questions.md`, `docs/claude-md-proposal.md`.
+2. If `open-questions.md` says `QUESTIONS: n` with n > 0, GRILL the human: Skill `software-factory:grill`, seeded with those questions, log `docs/grill-log.md`, intent doc `docs/answers.md`. Then re-run PASS DOC once so it folds the answers in (answered decisions become `Status: accepted`, with the human's reason as Context; unanswered stay `inferred`).
+3. Show the human: the component list, each decision (id, title, status), and anything flagged legacy or frozen. Ask for approval. Notes go to `docs/plan-notes.md` and re-run (max 3).
+4. On approval, apply `docs/claude-md-proposal.md` to `CLAUDE.md` Project context after showing it, mark `document` done, and tell the human they can start with `/software-factory:factory <feature>`.
+Inferred decisions are binding for specs and reviews like any other, but reviewers must treat a conflict with an `inferred` decision as a question for the human, not a hard failure.
 
 ## approve / rework / retro
 - `approve <id>`: only for `needs-human`. Show `decision.md` first. Merge, stage `done`.

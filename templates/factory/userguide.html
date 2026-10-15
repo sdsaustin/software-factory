@@ -76,7 +76,7 @@ th{background:var(--code)}
 <ol>
   <li><b>Init.</b> Create an empty folder, open Claude Code in it and run:
 <pre><code>&gt; /software-factory:init</code></pre>
-  It creates the git repo (branch <code>main</code>), <code>factory/</code>, and a project-context block in <code>CLAUDE.md</code> with <code>&lt;TBD&gt;</code> for the test command. That is expected for now.</li>
+  It creates the git repo (branch <code>main</code>) and records <code>default_branch</code>, <code>factory/</code>, and a project-context block in <code>CLAUDE.md</code> with <code>&lt;TBD&gt;</code> for the test command. That is expected for now.</li>
   <li><b>Plan.</b> Give the factory your idea in your own words:
 <pre><code>&gt; /software-factory:factory plan A tool that helps small SaaS teams get SOC 2 ready
   faster by collecting evidence automatically and tracking controls.</code></pre>
@@ -96,18 +96,21 @@ th{background:var(--code)}
 <h3 id="wf-existing">Workflow B: you already have an implementation</h3>
 <div class="flow">
   <span class="step">1 Init in the repo</span><span class="arrow">→</span>
-  <span class="step">2 Confirm context</span><span class="arrow">→</span>
+  <span class="step">2 Context + document</span><span class="arrow">→</span>
   <span class="step">3 Add features</span><span class="arrow">→</span>
   <span class="step">4 Review and merge</span><span class="arrow">→</span>
   <span class="step">5 Retro</span>
 </div>
 <ol>
-  <li><b>Prepare the repo.</b> Commit or stash your work (the factory needs a clean working tree). The factory merges finished jobs into <code>main</code>, so use <code>main</code> as your default branch; if yours has another name, rename it before the first job.</li>
+  <li><b>Prepare the repo.</b> Commit or stash your work (the factory needs a clean working tree). Be on your default branch (any name: <code>main</code>, <code>master</code>, <code>develop</code>…). <code>init</code> detects it and records it as <code>default_branch</code> in <code>factory/board.json</code>; jobs branch from it and merge back into it. Nothing is renamed. If your default branch is protected or needs pull requests, the factory pushes the job branch and asks you to open a PR instead of merging.</li>
   <li><b>Init.</b> In the repo root:
 <pre><code>&gt; /software-factory:init</code></pre>
   It adds <code>factory/</code> and appends the project-context block to your existing <code>CLAUDE.md</code> (nothing is overwritten). Because code exists, it also looks for your test, lint and build commands, runs the tests once, and shows you the exact lines it proposes to write. Approve them.</li>
-  <li><b>Confirm context.</b> Open <code>CLAUDE.md</code> and add only what an agent cannot learn from the code: policy, frozen or generated paths, non-default conventions, and mistakes you have actually seen. Skip directory trees and tech-stack lists. If you know major architectural decisions, add a few lines to <code>docs/decisions.md</code> too; every agent reads it and will not contradict it. You do <b>not</b> need <code>/factory plan</code>.</li>
-  <li><b>Add a feature.</b>
+  <li><b>Confirm context.</b> Open <code>CLAUDE.md</code> and add only what an agent cannot learn from the code: policy, frozen or generated paths, non-default conventions, and mistakes you have actually seen. Skip directory trees and tech-stack lists. You do <b>not</b> need <code>/factory plan</code>.</li>
+  <li><b>Document what exists.</b> Run:
+<pre><code>&gt; /software-factory:factory document</code></pre>
+  The planner reads your manifests, config, entrypoints, data models, CI and git history, then drafts <code>docs/architecture.md</code> and <code>docs/decisions.md</code>. Every decision is marked <code>Status: inferred</code> and cites the files or commits it came from. Where the code cannot tell the planner <i>why</i>, it writes "Context: unknown" and you are grilled on those questions (why this datastore, which parts are legacy, which conventions are law). Answered decisions become <code>accepted</code>. You approve the result, and the proposed <code>CLAUDE.md</code> facts, before anything is saved. Expect a few minutes of questions; this is what stops later specs from contradicting your past choices.</li>
+  <li><b>Add a feature.</b> (After the documentation is approved.)
 <pre><code>&gt; /software-factory:factory add CSV export to the evidence list, tenant-scoped</code></pre>
   The spec-writer inspects your repo, records a baseline test run, and picks the track (<code>quick</code> or <code>full</code>). Open decisions trigger a short grill. Then build, review, triage and approval run as in <a href="#loop">The loop</a>.</li>
   <li><b>Queue more.</b> Put features in <code>factory/backlog.md</code> as <code>- [ ] description</code> lines, then run <code>/software-factory:factory next</code> repeatedly. Keep each job small: five acceptance criteria or fewer.</li>
@@ -134,7 +137,7 @@ th{background:var(--code)}
 <ol>
   <li>Fill in <code>CLAUDE.md</code> under <b>Project context</b>. At minimum, set the <b>test command</b>. Without it, the readiness gate stops every job at <code>needs-human</code>.</li>
   <li>Add only facts an agent cannot learn from the code: policy, frozen paths, non-default conventions. Skip directory trees and tech-stack lists.</li>
-  <li>Make sure your working tree is clean and you are on <code>main</code>.</li>
+  <li>Make sure your working tree is clean and your default branch is checked out (<code>init</code> warns if not).</li>
   <li>Optional: start the dashboard.
 <pre><code>cd factory && python3 -m http.server 8000
 # open http://localhost:8000/dashboard.html</code></pre></li>
@@ -157,7 +160,7 @@ th{background:var(--code)}
   <tr><td>3 Build</td><td>builder (Opus)</td><td>Works on branch <code>factory/&lt;id&gt;</code>, writes tests per AC, commits, maps each AC to evidence.</td><td><code>build.md</code> + commits</td></tr>
   <tr><td>4 Review</td><td>security (Opus); ux, ui, code (Sonnet)</td><td>Run in parallel against the diff and the spec's intent. Round is complete only when every file exists.</td><td><code>round-N/*.md</code></td></tr>
   <tr><td>5 Triage</td><td>triager (Sonnet)</td><td>Verifies each finding, sets severity, routes it (see below).</td><td><code>round-N/triage.md</code></td></tr>
-  <tr><td>6 Decide</td><td>approver (Opus)</td><td><span class="pass">APPROVE</span> merges to <code>main</code>. <span class="chg">ESCALATE</span> marks <code>needs-human</code>.</td><td><code>decision.md</code></td></tr>
+  <tr><td>6 Decide</td><td>approver (Opus)</td><td><span class="pass">APPROVE</span> merges to the default branch (recorded in <code>board.json</code>). <span class="chg">ESCALATE</span> marks <code>needs-human</code>.</td><td><code>decision.md</code></td></tr>
 </table>
 
 <h3>Quick vs full track</h3>
@@ -290,7 +293,7 @@ factory/
   <tr><td>"Working tree must be clean"</td><td>Commit or stash your changes, then rerun.</td></tr>
   <tr><td>Dashboard says it cannot load board.json</td><td>Serve it: run <code>python3 -m http.server</code> inside <code>factory/</code>; opening the file directly will not work.</td></tr>
   <tr><td>A review file is missing</td><td>The round is incomplete by design. The orchestrator waits, and re-runs an agent once if its file is malformed.</td></tr>
-  <tr><td>Merge fails</td><td>Another job changed the same files. Run <code>/factory rework &lt;id&gt; rebase on main and resolve conflicts</code>.</td></tr>
+  <tr><td>Merge fails</td><td>Another job changed the same files. Run <code>/factory rework &lt;id&gt; rebase on the default branch and resolve conflicts</code>.</td></tr>
 </table>
 </div>
 </body>

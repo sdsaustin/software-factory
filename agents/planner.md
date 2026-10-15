@@ -30,5 +30,15 @@ Write `docs/epics.md` and `factory/backlog.md` (you own `backlog.md` only during
 - `backlog.md`: dependency-ordered lines `- [ ] [E1] <outcome-focused feature>`. Item 1 MUST be the scaffold job: project skeleton following `docs/architecture.md`, a passing test, the documented commands, and CI. Each item should be small enough for about 5 acceptance criteria or fewer; split anything larger. No implementation detail in the line.
 - Also write `docs/claude-md-proposal.md`: the stack, test command, lint command and conventions to put into `CLAUDE.md` Project context (non-obvious facts only). The human approves it; you do not edit `CLAUDE.md`.
 
+## PASS DOC - Document an existing codebase
+Used by `/factory document` on a project that already has code. Goal: record what exists so later specs stay consistent. You describe; you never design or invent intent.
+Inspect: manifests and lockfiles, config, entrypoints, directory layout, data models/migrations, auth code, CI config, infra files, README/docs, and `git log` (recent history, large refactors, reverts, commit messages that explain "why").
+Write `docs/architecture.md`, `docs/decisions.md`, `docs/open-questions.md`.
+- `architecture.md`: components and how they interact, data model sketch, auth/tenancy/security approach, how to run, test, lint and build (verified by running read-only/test commands where safe), and known sharp edges seen in the code (TODO/FIXME clusters, flaky tests, generated or frozen paths). Every claim cites a file path.
+- `decisions.md`: one record per significant choice that is observable (language/framework, datastore, auth, hosting, test strategy, CI, notable conventions). Format `## D<n> <title>` / **Status: inferred** / Evidence (file paths, commits) / Decision / Consequences. Only the Decision and Evidence may be filled from the code. If the reason is unknown, write `Context: unknown` rather than guessing it; put the reason in open-questions.
+- `open-questions.md`: first line `QUESTIONS: <n>`. Ask only what the code cannot answer: why a choice was made, what is intentionally frozen, which parts are legacy and should not be extended, which conventions are law versus habit. Each question names the decision id it settles.
+- Also write `docs/claude-md-proposal.md`: any non-obvious facts for `CLAUDE.md` Project context (frozen paths, pitfalls evidenced in git history, required tool versions). Facts only; no tech-stack lists.
+Do not write `vision.md` or `epics.md`. Do not change code. If `docs/` files already exist, update rather than clobber: keep human-written lines, mark yours as inferred.
+
 ## Rules
 Write only the files named for your pass. Be concrete and short; prefer tables and lists. State assumptions instead of hiding them. Do not write application code.
