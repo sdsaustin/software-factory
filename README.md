@@ -36,3 +36,5 @@ In any project:
 | `templates/` | Files copied into the project by `init` |
 
 Open `factory/userguide.html` in an initialized project for the full walkthrough and examples.
+
+Maintainers: see `docs/factoryarchitecture.html` for the architecture, file contracts, flows, invariants, maintenance playbooks and known limitations.

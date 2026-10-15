@@ -1,0 +1,534 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Factory Architecture</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--fg:#1c2330;--mut:#5f6877;--bd:#dde1e8;--acc:#3b5bdb;--acc2:#e8edff;--pass:#1a7f4b;--chg:#c0392b;--warn:#b7791f;--code:#eef0f4;--c1:#e8edff;--c2:#e6f6ee;--c3:#fff4e0;--c4:#fdebea;--c5:#efe9fb}
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]){--bg:#12151b;--card:#1a1f28;--fg:#e6e9ef;--mut:#9aa3b2;--bd:#2a313d;--acc:#8aa0f7;--acc2:#222b4a;--pass:#4cc38a;--chg:#ef6b5e;--warn:#e0a84a;--code:#232a35;--c1:#222b4a;--c2:#17332a;--c3:#3a2e17;--c4:#3a1f1d;--c5:#2c2447}}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.6 system-ui,sans-serif}
+.layout{display:grid;grid-template-columns:230px minmax(0,1fr);gap:24px;max-width:1180px;margin:0 auto;padding:0 16px 64px}
+aside{position:sticky;top:0;align-self:start;max-height:100vh;overflow:auto;padding:24px 0;font-size:13px}
+aside a{display:block;color:var(--mut);text-decoration:none;padding:2px 0}
+aside a:hover{color:var(--acc)}
+aside .sub{padding-left:12px}
+main{min-width:0}
+header{padding:28px 0 4px}
+h1{font-size:28px;margin:0 0 4px}
+h2{font-size:21px;margin:44px 0 8px;padding-top:10px;border-top:1px solid var(--bd)}
+h3{font-size:16px;margin:24px 0 4px}
+.lead{color:var(--mut);margin:0}
+code{background:var(--code);padding:1px 5px;border-radius:4px;font-size:.88em}
+pre{background:var(--code);padding:12px;border-radius:8px;overflow-x:auto;font-size:12.5px;line-height:1.5}
+pre code{background:none;padding:0}
+table{border-collapse:collapse;width:100%;font-size:13px;display:block;overflow-x:auto}
+th,td{border:1px solid var(--bd);padding:5px 9px;text-align:left;vertical-align:top}
+th{background:var(--code);white-space:nowrap}
+.callout{border-left:4px solid var(--acc);background:var(--card);padding:8px 14px;border-radius:0 8px 8px 0;margin:12px 0}
+.callout.warn{border-color:var(--warn)}.callout.bad{border-color:var(--chg)}
+.pill{display:inline-block;font-size:11px;padding:0 7px;border-radius:99px;border:1px solid var(--bd);background:var(--card);color:var(--mut)}
+.opus{color:#8a4fff}.sonnet{color:#0a8f9f}
+figure{margin:12px 0;background:var(--card);border:1px solid var(--bd);border-radius:10px;padding:10px;overflow-x:auto}
+figcaption{font-size:12px;color:var(--mut);margin-top:6px}
+svg text{fill:var(--fg);font:12px system-ui,sans-serif}
+svg .t2{fill:var(--mut);font-size:10.5px}
+svg .box{stroke:var(--bd);stroke-width:1.2}
+svg .line{stroke:var(--mut);stroke-width:1.4;fill:none}
+svg .dash{stroke-dasharray:5 4}
+svg .h{font-weight:600;font-size:12.5px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media(max-width:860px){.layout{grid-template-columns:1fr}aside{position:static;max-height:none}.grid2{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="layout">
+<aside>
+  <b>Factory Architecture</b>
+  <a href="#overview">1 Overview</a>
+  <a href="#principles">2 Design principles</a>
+  <a href="#layout">3 Repository layout</a>
+  <a href="#runtime">4 Runtime model</a>
+  <a href="#diagram">5 System diagram</a>
+  <a href="#components">6 Components</a>
+  <a class="sub" href="#skills">Skills</a>
+  <a class="sub" href="#agents">Agents</a>
+  <a class="sub" href="#templates">Templates</a>
+  <a href="#contracts">7 File contracts</a>
+  <a class="sub" href="#projectlayout">Project layout</a>
+  <a class="sub" href="#ownership">Ownership matrix</a>
+  <a class="sub" href="#protocol">First-line protocols</a>
+  <a class="sub" href="#board">board.json</a>
+  <a class="sub" href="#context">What each agent reads</a>
+  <a href="#flows">8 Flows</a>
+  <a class="sub" href="#f-init">init</a>
+  <a class="sub" href="#f-job">Job loop</a>
+  <a class="sub" href="#f-plan">plan</a>
+  <a class="sub" href="#f-doc">document</a>
+  <a class="sub" href="#f-other">approve / rework / retro</a>
+  <a class="sub" href="#f-grill">grill and brainstorm</a>
+  <a href="#git">9 Git and state policy</a>
+  <a href="#invariants">10 Invariants</a>
+  <a href="#config">11 Tunables</a>
+  <a href="#playbooks">12 Maintenance playbooks</a>
+  <a href="#testing">13 Testing</a>
+  <a href="#limits">14 Known limitations</a>
+  <a href="#provenance">15 Provenance</a>
+  <a href="#history">16 Version history</a>
+  <a href="#glossary">17 Glossary</a>
+</aside>
+<main>
+<header>
+  <h1>Factory Architecture</h1>
+  <p class="lead">Maintainer's reference for the <code>software-factory</code> Claude Code plugin (v1.3.x): what each part is, what it reads and writes, and how the parts collaborate. For end-user instructions see <code>factory/userguide.html</code> in an initialized project.</p>
+</header>
+
+<h2 id="overview">1. Overview</h2>
+<p>The factory is a <b>prompt-defined multi-agent system</b>. There is no server and no application code in the plugin: everything is markdown instructions (skills and agents), a few templates, and two JSON manifests. Claude Code is the runtime. One <b>orchestrator</b> skill runs in the user's main session and spawns <b>subagents</b> that each do one job and write one file. State between steps lives in plain files in the user's project, so any step can be inspected, edited or re-run by a human.</p>
+<div class="grid2">
+<div class="callout"><b>Two audiences</b><br>Users run slash commands in their project. Maintainers (you) edit the plugin repo. Behavior changes by editing prompts, so most "bugs" are prompt bugs and are fixed in <code>skills/*/SKILL.md</code> or <code>agents/*.md</code>.</div>
+<div class="callout warn"><b>Key caveat</b><br>Most rules ("an agent writes only its own file", "only the orchestrator writes board.json") are <i>conventions in prompts</i>, not enforced by permissions. See <a href="#limits">Known limitations</a>.</div>
+</div>
+
+<h2 id="principles">2. Design principles</h2>
+<table>
+<tr><th>Principle</th><th>How it shows up</th><th>Origin</th></tr>
+<tr><td>Files, not conversation</td><td>Agents read context from files and write exactly one file; nothing depends on chat history.</td><td>zazencodes factory</td></tr>
+<tr><td>Single writer of state</td><td>Only the orchestrator writes <code>factory/board.json</code>, so the dashboard never sees partial state.</td><td>zazencodes</td></tr>
+<tr><td>Fixed verdict grammar</td><td>First line of each output is machine-readable (<code>VERDICT:</code>, <code>TRIAGE:</code>, <code>APPROVE/ESCALATE</code>, <code>QUESTIONS:</code>).</td><td>zazencodes</td></tr>
+<tr><td>Round completeness</td><td>A review round is complete only when every expected reviewer file exists; the builder is never resumed mid-round.</td><td>zazencodes</td></tr>
+<tr><td>Right-sized process</td><td><code>quick</code> vs <code>full</code> track chosen per job.</td><td>BMAD</td></tr>
+<tr><td>Project context</td><td>Small <code>CLAUDE.md</code> block of non-obvious facts only; pitfalls added only after observed.</td><td>BMAD <code>project-context</code></td></tr>
+<tr><td>Explicit decisions</td><td>Acceptance criteria before build; <code>docs/decisions.md</code> records choices; inferred decisions are labelled.</td><td>BMAD</td></tr>
+<tr><td>Review triage</td><td>Findings are verified, severity-rated and routed (dismiss / patch / defer / decision) before the builder acts.</td><td>BMAD review</td></tr>
+<tr><td>Human keeps judgment</td><td>Approval gates in planning, <code>needs-human</code> for uncertainty, humans approve changes to <code>CLAUDE.md</code>.</td><td>BMAD</td></tr>
+<tr><td>Grill before guessing</td><td>Decisions are obtained in rounds of numbered questions; log + intent doc; headless mode records assumptions.</td><td>mattpocock <code>grilling</code> + BMAD brainstorming</td></tr>
+<tr><td>Idempotent setup, no overwrite</td><td><code>init</code> never overwrites an existing file and can be re-run.</td><td>this project</td></tr>
+</table>
+
+<h2 id="layout">3. Repository layout (plugin)</h2>
+<pre><code>software-factory/
+├─ .claude-plugin/
+│  ├─ plugin.json          plugin manifest (name, version, author, license)
+│  └─ marketplace.json     single-plugin marketplace so the repo is installable (source "./")
+├─ skills/
+│  ├─ factory/SKILL.md     ORCHESTRATOR: loop, plan, document, approve/rework/retro, preflight
+│  ├─ init/SKILL.md        project initializer (user-invoked only)
+│  ├─ grill/SKILL.md       decision interviewer (adapted from mattpocock/skills)
+│  └─ brainstorm/SKILL.md  divergent facilitator + MoSCoW narrowing (condensed from BMAD)
+├─ agents/                 one markdown file per subagent role (10)
+│  ├─ planner.md  spec-writer.md  builder.md
+│  ├─ reviewer-security.md  reviewer-ux.md  reviewer-ui.md  reviewer-code.md
+│  └─ triager.md  approver.md  retro.md
+├─ templates/              copied into user projects by init
+│  ├─ project-context.md   block appended to CLAUDE.md (marker: software-factory:project-context)
+│  └─ factory/             board.json  backlog.md  learnings.md  dashboard.html  userguide.html
+├─ docs/factoryarchitecture.html   this document
+├─ NOTICE                  MIT attribution for the grill skill
+├─ README.md  .gitignore
+</code></pre>
+<p>Rule of thumb: <b>behavior</b> lives in <code>skills/</code> and <code>agents/</code>; <b>files users get</b> live in <code>templates/</code>; <b>distribution</b> lives in <code>.claude-plugin/</code>.</p>
+
+<h2 id="runtime">4. Runtime model</h2>
+<h3>Plugin vs project</h3>
+<ul>
+<li>The plugin is installed once (user scope). Its skills and agents are available in every project. It holds <b>no project state</b>.</li>
+<li>All state lives in the <b>user's project</b>: <code>factory/</code>, <code>docs/</code>, <code>CLAUDE.md</code>, and git branches <code>factory/&lt;id&gt;</code>. Every path inside prompts (<code>factory/…</code>, <code>docs/…</code>) is project-relative.</li>
+<li><code>init</code> is the only component that reads the plugin's own files (the templates), via <code>${CLAUDE_PLUGIN_ROOT}/templates</code>, with a <code>find ~/.claude/plugins …</code> fallback if the variable is not expanded.</li>
+</ul>
+<h3>Naming and namespacing</h3>
+<ul>
+<li>Plugin name is <code>software-factory</code>, so commands are <code>/software-factory:factory</code>, <code>/software-factory:init</code>, <code>/software-factory:grill</code>, <code>/software-factory:brainstorm</code>. Prompts abbreviate to <code>/factory</code>; the short form works only if nothing else claims it (unverified).</li>
+<li>Subagents are spawned with <code>subagent_type</code> = <code>software-factory:&lt;name&gt;</code> (e.g. <code>software-factory:builder</code>). The orchestrator's "Plugin notes" section tells the model to add this prefix. The builder additionally gets the instance name <code>builder-&lt;id&gt;</code> so it can be resumed with SendMessage.</li>
+</ul>
+<h3>Where the orchestrator runs</h3>
+<p>The <code>factory</code> skill runs in the user's <b>main session</b>. That matters: (a) it can spawn subagents, which subagents cannot do themselves; (b) it can ask the user questions (AskUserQuestion / chat); (c) it can invoke the <code>grill</code> and <code>brainstorm</code> skills, which in turn may dispatch fact-finding subagents.</p>
+<h3>Model assignment</h3>
+<p>Set in each agent's frontmatter (<code>model: opus|sonnet</code>). Opus for judgment-heavy roles (planner, spec-writer, builder, security reviewer, approver); Sonnet for the rest.</p>
+
+<h2 id="diagram">5. System diagram</h2>
+<figure>
+<svg viewBox="0 0 1060 560" width="100%" role="img" aria-label="System architecture">
+  <!-- user -->
+  <rect class="box" x="10" y="230" width="110" height="60" rx="10" style="fill:var(--c3)"/><text class="h" x="65" y="256" text-anchor="middle">Human</text><text class="t2" x="65" y="274" text-anchor="middle">commands · approvals</text>
+  <!-- orchestrator group -->
+  <rect class="box" x="170" y="20" width="270" height="520" rx="12" style="fill:var(--c1)"/><text class="h" x="305" y="42" text-anchor="middle">Main session (Claude Code)</text>
+  <rect class="box" x="190" y="60" width="230" height="130" rx="8" style="fill:var(--card)"/><text class="h" x="305" y="82" text-anchor="middle">skill: factory (orchestrator)</text>
+  <text class="t2" x="305" y="102" text-anchor="middle">job loop · plan · document</text><text class="t2" x="305" y="116" text-anchor="middle">approve · rework · retro · status</text><text class="t2" x="305" y="136" text-anchor="middle">sole writer of board.json</text><text class="t2" x="305" y="150" text-anchor="middle">spawns all agents, asks human</text>
+  <rect class="box" x="190" y="205" width="105" height="55" rx="8" style="fill:var(--card)"/><text class="h" x="242" y="228" text-anchor="middle">skill: init</text><text class="t2" x="242" y="245" text-anchor="middle">scaffold project</text>
+  <rect class="box" x="315" y="205" width="105" height="55" rx="8" style="fill:var(--card)"/><text class="h" x="367" y="228" text-anchor="middle">skill: grill</text><text class="t2" x="367" y="245" text-anchor="middle">decision rounds</text>
+  <rect class="box" x="190" y="275" width="230" height="45" rx="8" style="fill:var(--card)"/><text class="h" x="305" y="295" text-anchor="middle">skill: brainstorm</text><text class="t2" x="305" y="310" text-anchor="middle">diverge, then MoSCoW</text>
+  <text class="t2" x="305" y="338" text-anchor="middle">orchestrator invokes grill and</text><text class="t2" x="305" y="352" text-anchor="middle">brainstorm via the Skill tool</text>
+  <!-- agents -->
+  <rect class="box" x="500" y="20" width="270" height="520" rx="12" style="fill:var(--c5)"/><text class="h" x="635" y="42" text-anchor="middle">Subagents (agents/*.md)</text>
+  <g>
+    <rect class="box" x="520" y="58" width="230" height="40" rx="7" style="fill:var(--card)"/><text x="635" y="76" text-anchor="middle" class="h">planner (opus)</text><text class="t2" x="635" y="90" text-anchor="middle">PASS 1 · 2 · 3 · DOC</text>
+    <rect class="box" x="520" y="106" width="230" height="40" rx="7" style="fill:var(--card)"/><text x="635" y="124" text-anchor="middle" class="h">spec-writer (opus)</text><text class="t2" x="635" y="138" text-anchor="middle">spec.md</text>
+    <rect class="box" x="520" y="154" width="230" height="40" rx="7" style="fill:var(--card)"/><text x="635" y="172" text-anchor="middle" class="h">builder-&lt;id&gt; (opus)</text><text class="t2" x="635" y="186" text-anchor="middle">code on factory/&lt;id&gt; + build.md</text>
+    <rect class="box" x="520" y="202" width="230" height="100" rx="7" style="fill:var(--card)"/><text x="635" y="220" text-anchor="middle" class="h">4 reviewers (parallel)</text><text class="t2" x="635" y="238" text-anchor="middle">security (opus)</text><text class="t2" x="635" y="252" text-anchor="middle">ux · ui · code (sonnet)</text><text class="t2" x="635" y="270" text-anchor="middle">each writes round-N/&lt;name&gt;.md</text><text class="t2" x="635" y="286" text-anchor="middle">quick track: security + code only</text>
+    <rect class="box" x="520" y="310" width="230" height="40" rx="7" style="fill:var(--card)"/><text x="635" y="328" text-anchor="middle" class="h">triager (sonnet)</text><text class="t2" x="635" y="342" text-anchor="middle">round-N/triage.md</text>
+    <rect class="box" x="520" y="358" width="230" height="40" rx="7" style="fill:var(--card)"/><text x="635" y="376" text-anchor="middle" class="h">approver (opus)</text><text class="t2" x="635" y="390" text-anchor="middle">decision.md (never merges)</text>
+    <rect class="box" x="520" y="406" width="230" height="40" rx="7" style="fill:var(--card)"/><text x="635" y="424" text-anchor="middle" class="h">retro (sonnet)</text><text class="t2" x="635" y="438" text-anchor="middle">retro-proposal.md</text>
+  </g>
+  <!-- project -->
+  <rect class="box" x="830" y="20" width="220" height="400" rx="12" style="fill:var(--c2)"/><text class="h" x="940" y="42" text-anchor="middle">User's project (state)</text>
+  <rect class="box" x="845" y="58" width="190" height="52" rx="7" style="fill:var(--card)"/><text class="h" x="940" y="78" text-anchor="middle">CLAUDE.md</text><text class="t2" x="940" y="94" text-anchor="middle">project-context block</text>
+  <rect class="box" x="845" y="120" width="190" height="62" rx="7" style="fill:var(--card)"/><text class="h" x="940" y="140" text-anchor="middle">docs/</text><text class="t2" x="940" y="156" text-anchor="middle">vision · architecture · decisions</text><text class="t2" x="940" y="170" text-anchor="middle">epics · intent · logs</text>
+  <rect class="box" x="845" y="192" width="190" height="100" rx="7" style="fill:var(--card)"/><text class="h" x="940" y="212" text-anchor="middle">factory/</text><text class="t2" x="940" y="228" text-anchor="middle">board.json · backlog.md</text><text class="t2" x="940" y="242" text-anchor="middle">learnings.md · jobs/&lt;id&gt;/…</text><text class="t2" x="940" y="256" text-anchor="middle">dashboard.html · userguide.html</text>
+  <rect class="box" x="845" y="302" width="190" height="52" rx="7" style="fill:var(--card)"/><text class="h" x="940" y="322" text-anchor="middle">git</text><text class="t2" x="940" y="338" text-anchor="middle">default branch + factory/&lt;id&gt;</text>
+  <rect class="box" x="845" y="364" width="190" height="44" rx="7" style="fill:var(--card)"/><text class="h" x="940" y="382" text-anchor="middle">source code + tests</text>
+  <!-- dashboard -->
+  <rect class="box" x="830" y="450" width="220" height="70" rx="10" style="fill:var(--c3)"/><text class="h" x="940" y="474" text-anchor="middle">Browser dashboard</text><text class="t2" x="940" y="492" text-anchor="middle">polls board.json every 3s</text><text class="t2" x="940" y="506" text-anchor="middle">python3 -m http.server</text>
+  <!-- plugin -->
+  <rect class="box dash" x="170" y="470" width="270" height="55" rx="8" style="fill:none"/><text class="h" x="305" y="492" text-anchor="middle">Plugin cache (read-only)</text><text class="t2" x="305" y="508" text-anchor="middle">templates/ read only by init</text>
+  <!-- arrows -->
+  <path class="line" d="M120 260 H170"/><polygon points="170,256 178,260 170,264" style="fill:var(--mut)"/>
+  <path class="line" d="M440 120 H500"/><polygon points="500,116 508,120 500,124" style="fill:var(--mut)"/><text class="t2" x="470" y="112" text-anchor="middle">spawn</text>
+  <path class="line" d="M750 160 H830"/><polygon points="830,156 838,160 830,164" style="fill:var(--mut)"/><text class="t2" x="790" y="152" text-anchor="middle">read/write</text>
+  <path class="line" d="M940 420 V450"/><polygon points="936,450 940,458 944,450" style="fill:var(--mut)"/>
+  <path class="line dash" d="M200 470 V 266" /><polygon points="196,272 200,264 204,272" style="fill:var(--mut)"/><text class="t2" x="208" y="420">init copies templates</text>
+</svg>
+<figcaption>The orchestrator (main session) spawns subagents; subagents exchange information only through project files and git. The dashboard only reads <code>board.json</code> and job files.</figcaption>
+</figure>
+
+<h2 id="components">6. Components</h2>
+<h3 id="skills">6.1 Skills</h3>
+<table>
+<tr><th>Skill</th><th>File</th><th>Invocation</th><th>Responsibility</th></tr>
+<tr><td><b>factory</b></td><td><code>skills/factory/SKILL.md</code></td><td><code>/software-factory:factory &lt;args&gt;</code></td><td>Orchestrator. Sections: Plugin notes · Commands · board.json · Preflight · Loop · Plan command · Document command · approve/rework/retro · Rules. Spawns every agent, invokes grill/brainstorm, owns <code>board.json</code>, performs merges and state commits.</td></tr>
+<tr><td><b>init</b></td><td><code>skills/init/SKILL.md</code></td><td><code>/software-factory:init</code> (<code>disable-model-invocation: true</code>)</td><td>Detect/record default branch, create <code>factory/</code> from templates (no overwrite), append project-context block to <code>CLAUDE.md</code> (marker-guarded), ensure <code>.DS_Store</code> in <code>.gitignore</code>, detect test/lint/build for existing code, recommend next step, offer commit.</td></tr>
+<tr><td><b>grill</b></td><td><code>skills/grill/SKILL.md</code></td><td><code>/software-factory:grill [topic]</code> or via Skill tool</td><td>Design-tree interview in rounds. <code>[recommend]</code> vs <code>[open]</code> question tags. Append-only decision log, mirror-then-connect wrap-up, intent doc, headless mode (assumed answers, <code>partial</code> when OPEN remain).</td></tr>
+<tr><td><b>brainstorm</b></td><td><code>skills/brainstorm/SKILL.md</code></td><td><code>/software-factory:brainstorm [topic]</code> or via Skill tool</td><td>Facilitator-style divergence (no ideas supplied by the coach), 3–4 techniques, separate convergence phase (MoSCoW default), log + <code>docs/intent.md</code>.</td></tr>
+</table>
+<h3 id="agents">6.2 Agents</h3>
+<p>All are in <code>agents/</code>. Tools are restricted in frontmatter. "Writes" lists the only file(s) the agent should write.</p>
+<table>
+<tr><th>Agent</th><th>Model</th><th>Tools</th><th>Writes</th><th>Output contract</th><th>Spawned in</th></tr>
+<tr><td><b>planner</b></td><td class="opus">opus</td><td>Read Glob Grep Bash Write WebSearch WebFetch</td><td>PASS 1: <code>docs/vision.md</code> <code>product-brief.md</code> <code>open-questions.md</code><br>PASS 2: <code>architecture.md</code> <code>decisions.md</code><br>PASS 3: <code>epics.md</code> <code>factory/backlog.md</code> <code>claude-md-proposal.md</code><br>PASS DOC: <code>architecture.md</code> <code>decisions.md</code> <code>open-questions.md</code> <code>claude-md-proposal.md</code></td><td><code>open-questions.md</code> line 1 <code>QUESTIONS: n</code></td><td>plan, document</td></tr>
+<tr><td><b>spec-writer</b></td><td class="opus">opus</td><td>Read Glob Grep Bash Write</td><td><code>jobs/&lt;id&gt;/spec.md</code></td><td>Sections incl. <code>Track: quick|full</code>, numbered ACs, Baseline, Open decisions, Red-team notes (full only)</td><td>job step 1</td></tr>
+<tr><td><b>builder</b></td><td class="opus">opus</td><td>Read Glob Grep Bash Write Edit</td><td>product code + tests on <code>factory/&lt;id&gt;</code>; <code>jobs/&lt;id&gt;/build.md</code></td><td>AC→evidence table, SHAs; later rounds append <code>## Round N</code></td><td>job step 3; resumed via SendMessage</td></tr>
+<tr><td><b>reviewer-security</b></td><td class="opus">opus</td><td>Read Glob Grep Bash Write</td><td><code>round-N/security.md</code></td><td>line 1 <code>VERDICT: PASS|CHANGES</code></td><td>job step 4</td></tr>
+<tr><td><b>reviewer-ux</b></td><td class="sonnet">sonnet</td><td>same</td><td><code>round-N/ux.md</code></td><td>VERDICT; <code>N/A: reason</code> allowed</td><td>step 4 (full only)</td></tr>
+<tr><td><b>reviewer-ui</b></td><td class="sonnet">sonnet</td><td>same</td><td><code>round-N/ui.md</code></td><td>VERDICT; <code>N/A</code> allowed</td><td>step 4 (full only)</td></tr>
+<tr><td><b>reviewer-code</b></td><td class="sonnet">sonnet</td><td>same</td><td><code>round-N/code.md</code></td><td>VERDICT; re-runs tests</td><td>step 4</td></tr>
+<tr><td><b>triager</b></td><td class="sonnet">sonnet</td><td>Read Glob Grep Bash Write</td><td><code>round-N/triage.md</code></td><td>line 1 <code>TRIAGE: CLEAN|PATCH|DECISION</code>, then table reviewer|file:line|severity|route|reason</td><td>step 5</td></tr>
+<tr><td><b>approver</b></td><td class="opus">opus</td><td>Read Glob Grep Bash Write</td><td><code>jobs/&lt;id&gt;/decision.md</code></td><td>line 1 <code>APPROVE|ESCALATE</code>; never merges</td><td>step 6</td></tr>
+<tr><td><b>retro</b></td><td class="sonnet">sonnet</td><td>Read Glob Grep Write</td><td><code>factory/retro-proposal.md</code></td><td>learnings lines, CLAUDE.md pitfall candidates, process tweaks</td><td>retro</td></tr>
+</table>
+<h3 id="templates">6.3 Templates</h3>
+<table>
+<tr><th>Template</th><th>Becomes</th><th>Notes</th></tr>
+<tr><td><code>templates/factory/board.json</code></td><td><code>factory/board.json</code></td><td><code>{"version":1,"default_branch":null,"jobs":[]}</code>; <code>init</code> fills <code>default_branch</code>.</td></tr>
+<tr><td><code>templates/factory/backlog.md</code></td><td><code>factory/backlog.md</code></td><td>Queue; lines <code>- [ ] [E1] text</code>.</td></tr>
+<tr><td><code>templates/factory/learnings.md</code></td><td><code>factory/learnings.md</code></td><td>Append-only lessons; read by all agents.</td></tr>
+<tr><td><code>templates/factory/dashboard.html</code></td><td><code>factory/dashboard.html</code></td><td>Self-contained board. Columns = stages; chips from <code>reviews</code>; click-through to job files; polls every 3 s. Does <b>not</b> show <code>plan</code>/<code>document</code> state.</td></tr>
+<tr><td><code>templates/factory/userguide.html</code></td><td><code>factory/userguide.html</code></td><td>End-user guide with workflows A (idea) and B (existing code).</td></tr>
+<tr><td><code>templates/project-context.md</code></td><td>appended to <code>CLAUDE.md</code></td><td>Contains marker <code>software-factory:project-context</code>; sections Policy · Running the project · Non-default conventions · Observed pitfalls · Software factory.</td></tr>
+</table>
+
+<h2 id="contracts">7. File contracts</h2>
+<h3 id="projectlayout">7.1 Layout created in a project</h3>
+<pre><code>CLAUDE.md                          project context (human-approved edits only)
+docs/                              created by plan / document / grill / brainstorm
+  vision-input.md                  raw vision text            (orchestrator)
+  brainstorm-log.md                append-only               (brainstorm)
+  grill-log.md                     append-only decisions D1.. (grill)
+  intent.md                        brief from grill/brainstorm (grill, brainstorm)
+  answers.md                       human answers              (grill / orchestrator)
+  vision.md  product-brief.md      PASS 1                     (planner)
+  open-questions.md                PASS 1 / PASS DOC          (planner)
+  architecture.md  decisions.md    PASS 2 / PASS DOC          (planner)
+  epics.md                         PASS 3                     (planner)
+  claude-md-proposal.md            PASS 3 / PASS DOC          (planner)
+  plan-notes.md                    human feedback, dated      (orchestrator)
+factory/
+  board.json  backlog.md  learnings.md  dashboard.html  userguide.html
+  retro-proposal.md
+  jobs/&lt;id&gt;/                       id = NNN-short-slug
+    spec.md  build.md  decision.md
+    grill-log.md  answers.md       only when a spec had open decisions
+    round-1/ security.md ux.md ui.md code.md triage.md
+    round-2/ ...                   (rework can add rounds 3-4)
+</code></pre>
+<h3 id="ownership">7.2 Ownership matrix (who may write)</h3>
+<table>
+<tr><th>File(s)</th><th>Owner</th><th>Others</th></tr>
+<tr><td><code>factory/board.json</code></td><td>orchestrator</td><td>agents: read <code>default_branch</code> only</td></tr>
+<tr><td><code>factory/backlog.md</code></td><td>human; orchestrator ticks items; planner PASS 3 writes it</td><td>—</td></tr>
+<tr><td><code>factory/learnings.md</code></td><td>orchestrator (appends from retro)</td><td>—</td></tr>
+<tr><td><code>CLAUDE.md</code></td><td>human; orchestrator applies approved proposals / <code>init</code> appends block</td><td>agents never</td></tr>
+<tr><td><code>spec.md</code> <code>build.md</code> <code>decision.md</code> <code>round-N/*</code></td><td>the one agent named for it</td><td>orchestrator appends human rework note to <code>build.md</code></td></tr>
+<tr><td>product code and tests</td><td>builder, on <code>factory/&lt;id&gt;</code> only</td><td>no one else</td></tr>
+<tr><td>default branch</td><td>orchestrator (merge, state commit)</td><td>agents never</td></tr>
+</table>
+<h3 id="protocol">7.3 First-line protocols</h3>
+<table>
+<tr><th>File</th><th>Line 1</th><th>Consumer behavior if malformed</th></tr>
+<tr><td>review files</td><td><code>VERDICT: PASS</code> | <code>VERDICT: CHANGES</code></td><td>agent treated as failed; re-run once</td></tr>
+<tr><td><code>triage.md</code></td><td><code>TRIAGE: CLEAN</code> | <code>PATCH</code> | <code>DECISION</code></td><td>same</td></tr>
+<tr><td><code>decision.md</code></td><td><code>APPROVE</code> | <code>ESCALATE</code></td><td>same</td></tr>
+<tr><td><code>open-questions.md</code></td><td><code>QUESTIONS: n</code> (0 or <code>NONE</code> = no questions)</td><td>same</td></tr>
+</table>
+<h3 id="board">7.4 board.json schema</h3>
+<pre><code>{
+  "version": 1,
+  "default_branch": "main|master|…",          // set by init or orchestrator preflight
+  "plan":     {"pass": 1|2|3, "status": "running|awaiting-questions|awaiting-approval|approved|done"},  // optional
+  "document": "running|awaiting-approval|done",                                                          // optional
+  "jobs": [{
+    "id": "001-health-endpoint", "title": "…",
+    "track": "quick|full",
+    "stage": "spec|build|review|triage|decision|needs-human|done",
+    "round": 1,
+    "reviews": {"1": {"security":"PASS|CHANGES|pending|N/A","ux":…,"ui":…,"code":…,
+                      "triage":"CLEAN|PATCH|DECISION|pending"}},
+    "decision": "APPROVE|ESCALATE|null",
+    "branch": "factory/001-health-endpoint",
+    "epic": "E1",                              // optional, from backlog tag
+    "updated": "ISO-8601"
+  }]
+}</code></pre>
+<p>Written as a whole-file read-modify-write at every transition. The dashboard relies on <code>stage</code>, <code>track</code>, <code>decision</code>, <code>reviews</code>, <code>id</code>, <code>title</code>; additional fields are ignored.</p>
+<h3 id="context">7.5 What each agent reads first</h3>
+<table>
+<tr><th>Agent</th><th>CLAUDE.md</th><th>learnings.md</th><th>docs/*</th><th>job files</th><th>other</th></tr>
+<tr><td>planner</td><td>✔</td><td>✔</td><td>all existing (intent, grill-log, answers, plan-notes honored)</td><td>—</td><td><code>vision-input.md</code>; repo + git log for DOC</td></tr>
+<tr><td>spec-writer</td><td>✔</td><td>✔</td><td>vision, decisions, epics (+ architecture for scaffold)</td><td><code>answers.md</code> if present</td><td>repo</td></tr>
+<tr><td>builder</td><td>✔</td><td>✔</td><td>—</td><td>spec, then triage on later rounds</td><td><code>default_branch</code></td></tr>
+<tr><td>reviewers</td><td>✔</td><td>✔</td><td>—</td><td>spec, build</td><td>git diff default...factory/&lt;id&gt;</td></tr>
+<tr><td>triager</td><td>—</td><td>—</td><td>decisions (for inferred rule)</td><td>spec, build, all round-N reviews</td><td>code at cited locations</td></tr>
+<tr><td>approver</td><td>✔</td><td>✔</td><td>—</td><td>spec, build, all rounds, triage</td><td>diff, re-runs tests</td></tr>
+<tr><td>retro</td><td>✔</td><td>✔</td><td>—</td><td>spec, build, rounds, decision of finished jobs</td><td>—</td></tr>
+</table>
+<p>The project-context block in <code>CLAUDE.md</code> also tells every agent to read <code>docs/vision.md</code>, <code>architecture.md</code>, <code>decisions.md</code>, <code>epics.md</code> when they exist, so this is partly enforced by the prompt text you are reading from <code>CLAUDE.md</code> rather than each agent file.</p>
+
+<h2 id="flows">8. Flows</h2>
+<h3 id="f-init">8.1 init</h3>
+<ol>
+<li>Git: if not a repo, <code>git init -b main</code>. Else detect default branch (<code>origin/HEAD</code>, else current). Never rename.</li>
+<li>Create <code>factory/</code>, <code>factory/jobs/.gitkeep</code>; copy five templates if absent; set <code>default_branch</code> in <code>board.json</code>.</li>
+<li>Append project-context block to <code>CLAUDE.md</code> unless marker present.</li>
+<li>Ensure <code>.gitignore</code> has <code>.DS_Store</code>.</li>
+<li>If code exists: find test/lint/build commands, run tests once, propose <code>CLAUDE.md</code> lines, apply only on consent.</li>
+<li>Recommend one next step (empty → <code>plan</code>; existing → <code>document</code> then a feature). Offer commit.</li>
+</ol>
+
+<h3 id="f-job">8.2 The job loop (<code>/factory &lt;feature&gt;</code>, <code>/factory next</code>)</h3>
+<figure>
+<svg viewBox="0 0 1000 250" width="100%" role="img" aria-label="Job stage state machine">
+  <defs><marker id="ar" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" style="fill:var(--mut)"/></marker></defs>
+  <g class="box">
+  <rect x="10" y="90" width="90" height="46" rx="8" style="fill:var(--c1)"/><rect x="140" y="90" width="90" height="46" rx="8" style="fill:var(--c1)"/><rect x="270" y="90" width="90" height="46" rx="8" style="fill:var(--c1)"/><rect x="400" y="90" width="90" height="46" rx="8" style="fill:var(--c1)"/><rect x="530" y="90" width="90" height="46" rx="8" style="fill:var(--c1)"/><rect x="660" y="90" width="90" height="46" rx="8" style="fill:var(--c2)"/>
+  <rect x="400" y="190" width="150" height="46" rx="8" style="fill:var(--c3)"/><rect x="800" y="90" width="90" height="46" rx="8" style="fill:var(--c2)"/>
+  </g>
+  <text class="h" x="55" y="118" text-anchor="middle">spec</text><text class="h" x="185" y="118" text-anchor="middle">gate</text><text class="h" x="315" y="118" text-anchor="middle">build</text><text class="h" x="445" y="118" text-anchor="middle">review</text><text class="h" x="575" y="118" text-anchor="middle">triage</text><text class="h" x="705" y="118" text-anchor="middle">decision</text><text class="h" x="475" y="218" text-anchor="middle">needs-human</text><text class="h" x="845" y="118" text-anchor="middle">done</text>
+  <g class="line" marker-end="url(#ar)">
+  <path d="M100 113 H138" marker-end="url(#ar)"/><path d="M230 113 H268" marker-end="url(#ar)"/><path d="M360 113 H398" marker-end="url(#ar)"/><path d="M490 113 H528" marker-end="url(#ar)"/><path d="M620 113 H658" marker-end="url(#ar)"/><path d="M750 113 H798" marker-end="url(#ar)"/>
+  <path d="M185 136 C185 200, 300 213, 398 213" marker-end="url(#ar)"/>
+  <path d="M575 136 C575 190, 560 205, 552 208" marker-end="url(#ar)"/>
+  <path d="M705 136 C705 200, 600 220, 552 216" marker-end="url(#ar)"/>
+  <path d="M575 90 C575 40, 330 40, 320 88" marker-end="url(#ar)"/>
+  </g>
+  <text class="t2" x="190" y="180">open decisions → grill → re-spec once</text>
+  <text class="t2" x="410" y="38">PATCH and round &lt; 2: builder resumed, new review round</text>
+  <text class="t2" x="590" y="168">DECISION</text><text class="t2" x="712" y="170">ESCALATE</text>
+  <text class="t2" x="735" y="82">APPROVE → merge</text>
+  <path d="M552 236 C700 250, 840 200, 845 138" class="line dash" marker-end="url(#ar)"/><text class="t2" x="700" y="246">/factory approve</text>
+</svg>
+<figcaption>Job stages as stored in <code>board.json</code>. <code>needs-human</code> is entered from the readiness gate, from triage (DECISION) or from the approver (ESCALATE); only a human command moves it on.</figcaption>
+</figure>
+<ol>
+<li><b>Preflight</b>: resolve <code>default_branch</code> (detect and store if missing); require default branch checked out and no uncommitted changes <i>outside</i> <code>factory/</code>, <code>docs/</code>, <code>CLAUDE.md</code>; require a test command (scaffold job excepted).</li>
+<li><b>Spec</b>: allocate id <code>NNN-slug</code>; spawn <code>spec-writer</code> → <code>spec.md</code> (declares track).</li>
+<li><b>Readiness gate</b>: spec needs Intent, numbered ACs and a test command in Baseline. Open decisions → <code>needs-human</code> → run <code>grill</code> (log <code>jobs/&lt;id&gt;/grill-log.md</code>, answers <code>answers.md</code>) → re-run spec-writer once → still open ⇒ stay <code>needs-human</code>. Other gaps → re-run spec-writer once, else <code>needs-human</code>.</li>
+<li><b>Build</b>: spawn <code>builder</code> named <code>builder-&lt;id&gt;</code>; branch <code>factory/&lt;id&gt;</code> from default branch; tests per AC; commits only product code; writes <code>build.md</code>.</li>
+<li><b>Review round N</b>: <code>full</code> = 4 reviewers in one parallel message; <code>quick</code> = security + code (ux/ui recorded <code>N/A</code>). Orchestrator waits for all expected files, records each VERDICT on the board as files land.</li>
+<li><b>Triage</b>: spawn <code>triager</code>. <code>CLEAN</code> → decision. <code>DECISION</code> → <code>needs-human</code>. <code>PATCH</code> → if N&lt;2, resume <code>builder-&lt;id&gt;</code> with SendMessage (fix only <code>patch</code> items) and start round N+1; at N=2 go to decision.</li>
+<li><b>Decision</b>: spawn <code>approver</code>. <code>APPROVE</code> → merge <code>factory/&lt;id&gt;</code> into default branch with <code>--no-ff</code> (or push branch and ask for a PR if protected / PR-required), stage <code>done</code>, commit factory state on default branch (<code>factory: record job &lt;id&gt;</code>), offer retro. <code>ESCALATE</code> → <code>needs-human</code>.</li>
+</ol>
+
+<h3 id="f-plan">8.3 plan (<code>/factory plan &lt;vision&gt;</code>)</h3>
+<div class="callout">Purpose: greenfield. Three planner passes, each followed by a human approval gate; ≤3 re-runs per pass on human notes (<code>docs/plan-notes.md</code>). State in <code>board.json.plan</code>. Resumable.</div>
+<ol>
+<li><b>Pass 1 Clarify.</b> Write vision to <code>docs/vision-input.md</code>. If thin (&lt;~60 words / no users or outcome) or user unsure → <code>brainstorm</code>. Then <code>grill</code> (skip only on "skip grill"; headless on request, assumptions shown at the gate). Then <code>planner</code> PASS 1 → <code>vision.md</code>, <code>product-brief.md</code> (MoSCoW), <code>open-questions.md</code>; leftover questions are asked in grill format and PASS 1 re-runs once. <i>Gate.</i></li>
+<li><b>Pass 2 Architecture.</b> <code>planner</code> PASS 2 → <code>architecture.md</code> (with pre-mortem), <code>decisions.md</code> (pluses/minuses/interesting per decision). Show decisions, run commands and pre-mortem. <i>Gate.</i></li>
+<li><b>Pass 3 Epics and backlog.</b> <code>planner</code> PASS 3 → <code>epics.md</code> (done-when checks, dependencies), <code>factory/backlog.md</code> ordered by dependency → MoSCoW → impact/effort, item 1 = scaffold job, plus <code>claude-md-proposal.md</code>. <i>Gate.</i></li>
+<li><b>Finish.</b> Show and (on approval) apply the <code>CLAUDE.md</code> proposal; mark plan done; offer to commit; point to <code>/factory next</code>.</li>
+</ol>
+
+<h3 id="f-doc">8.4 document (<code>/factory document</code>)</h3>
+<ol>
+<li><code>planner</code> PASS DOC inspects manifests, config, entrypoints, models, CI, README and <code>git log</code>; writes <code>architecture.md</code>, <code>decisions.md</code> (every record <code>Status: inferred</code> with file/commit evidence; reason unknown → <code>Context: unknown</code>), <code>open-questions.md</code>, <code>claude-md-proposal.md</code>.</li>
+<li>If questions: <code>grill</code> (log <code>docs/grill-log.md</code>, answers <code>docs/answers.md</code>); re-run PASS DOC once → answered decisions become <code>accepted</code>.</li>
+<li>Show components, decisions + status, legacy/frozen flags. Human approves (notes re-run, max 3). Apply <code>CLAUDE.md</code> proposal after showing it.</li>
+<li>Downstream rule: a review finding that conflicts with an <code>inferred</code> decision is routed <code>decision</code> by the triager (ask the human), never auto-patched.</li>
+</ol>
+
+<h3 id="f-other">8.5 approve, rework, retro, status</h3>
+<ul>
+<li><b>approve &lt;id&gt;</b>: only for <code>needs-human</code>; show <code>decision.md</code>; merge; <code>done</code>; commit factory state.</li>
+<li><b>rework &lt;id&gt; &lt;note&gt;</b>: append note under <code>## Human rework</code> in <code>build.md</code>; resume <code>builder-&lt;id&gt;</code> (spawn a fresh one with the same name if gone); new review round. Grants two more rounds (cap is per rework, not global).</li>
+<li><b>retro</b> (manual, also offered every 5 done jobs and at epic close): <code>retro</code> agent writes <code>factory/retro-proposal.md</code>; orchestrator appends learnings to <code>learnings.md</code>; <code>CLAUDE.md</code> pitfalls applied only if the human approves. At epic close the orchestrator also reports which of the epic's "done when" checks hold (does not edit <code>epics.md</code>).</li>
+<li><b>status</b>: prints board.</li>
+</ul>
+
+<h3 id="f-grill">8.6 grill and brainstorm</h3>
+<table>
+<tr><th></th><th>grill</th><th>brainstorm</th></tr>
+<tr><td>Mode</td><td>converge: empty the decision frontier</td><td>diverge, then converge</td></tr>
+<tr><td>Questions</td><td>whole frontier per round, numbered; <code>[recommend]</code> carries a suggestion, <code>[open]</code> does not</td><td>one prompt per message, no menus, coach supplies no ideas</td></tr>
+<tr><td>Log</td><td><code>docs/grill-log.md</code> (or <code>factory/jobs/&lt;id&gt;/grill-log.md</code>), lines <code>D&lt;n&gt; Q → A (user|assumed)</code>, <code>RISK:</code>, <code>OPEN:</code>; resumes if <code>status: open</code></td><td><code>docs/brainstorm-log.md</code>: <code>idea:</code> <code>insight:</code> <code>technique:</code></td></tr>
+<tr><td>Wrap-up</td><td>mirror → connect (contradictions) → intent doc → <code>status: complete</code></td><td>mirror → connect → MoSCoW → <code>docs/intent.md</code></td></tr>
+<tr><td>Headless</td><td>assumes <code>[recommend]</code> answers, records <code>OPEN</code> for the rest; <code>partial</code> if any OPEN</td><td>generates ideas itself, all marked assumed</td></tr>
+<tr><td>Facts</td><td>looked up by sub-agent, never asked of the human</td><td>—</td></tr>
+</table>
+
+<h2 id="git">9. Git and state policy</h2>
+<ul>
+<li><b>Default branch</b> is data: <code>board.json.default_branch</code>. Agents read it; prompts never hard-code <code>main</code> (except <code>init</code>'s <code>git init -b main</code> for brand-new repos).</li>
+<li><b>Job branch</b> <code>factory/&lt;id&gt;</code> carries product code and tests only. The builder stages explicit paths and never commits anything under <code>factory/</code>, <code>docs/</code> or <code>CLAUDE.md</code>, so the review diff <code>default...factory/&lt;id&gt;</code> is clean.</li>
+<li><b>Factory state</b> (<code>factory/</code>, <code>docs/</code>, <code>CLAUDE.md</code>) is allowed to be uncommitted during a job. It is committed on the default branch only after merge (<code>factory: record job &lt;id&gt;</code>) or when the human accepts the plan-commit offer. Preflight therefore ignores those paths.</li>
+<li><b>Merge</b> is <code>--no-ff</code> by the orchestrator only after APPROVE or <code>/factory approve</code>. Protected/PR-required repos: push branch, ask the human to open a PR.</li>
+<li>Nothing is pushed to a remote by the factory except in the protected-branch case.</li>
+</ul>
+
+<h2 id="invariants">10. Invariants (do not break when editing prompts)</h2>
+<ol>
+<li>Only the orchestrator writes <code>board.json</code> and the default branch.</li>
+<li>Each agent writes only the files named in its own prompt; reviewers and triager/approver never modify code.</li>
+<li>First-line grammar in §7.3 is unchanged, or the orchestrator's parsing is updated in the same change.</li>
+<li>A review round is complete only when every expected file exists; builder is never resumed mid-round.</li>
+<li>Problems a change caused are never <code>defer</code>; <code>defer</code> is only for pre-existing problems.</li>
+<li>Round cap 2 per cycle; more only via human <code>rework</code>.</li>
+<li>Planning never starts the next pass without human approval; approved pass outputs are not overwritten without the human saying so.</li>
+<li>Only the human approves changes to <code>CLAUDE.md</code> (orchestrator applies approved text; <code>init</code> appends its block once).</li>
+<li><code>init</code> never overwrites and never renames branches.</li>
+<li>Inferred decisions are never presented as accepted; assumed grill answers are never presented as user answers.</li>
+<li>Paths in prompts are project-relative; only <code>init</code> touches plugin files.</li>
+</ol>
+
+<h2 id="config">11. Tunables</h2>
+<table>
+<tr><th>What</th><th>Where</th><th>Current value / note</th></tr>
+<tr><td>Agent models</td><td>frontmatter <code>model:</code> in <code>agents/*.md</code></td><td>opus: planner, spec-writer, builder, security, approver. sonnet: ux, ui, code, triager, retro</td></tr>
+<tr><td>Agent tools</td><td>frontmatter <code>tools:</code></td><td>Reviewers have Bash+Write (needed to run tests and write their file) but are told not to edit code</td></tr>
+<tr><td>Review round cap</td><td>orchestrator Loop step 5, rework</td><td>2; rework grants 2 more</td></tr>
+<tr><td>Plan/document re-run cap</td><td>orchestrator Plan command</td><td>3 per pass</td></tr>
+<tr><td>Quick vs full rule</td><td><code>spec-writer.md</code> (Track line) + orchestrator</td><td>quick = small/obvious/single area; full = auth, data, multi-area, UI flows</td></tr>
+<tr><td>Quick-track reviewers</td><td>orchestrator Loop step 4</td><td>security + code</td></tr>
+<tr><td>Thin-vision threshold</td><td>orchestrator Plan Pass 1a</td><td>~60 words / no users or outcome</td></tr>
+<tr><td>Retro cadence</td><td>orchestrator retro</td><td>every 5 done jobs, epic close, manual</td></tr>
+<tr><td>Backlog item size</td><td><code>planner.md</code> PASS 3</td><td>≤ ~5 acceptance criteria</td></tr>
+<tr><td>Dashboard poll</td><td><code>dashboard.html</code></td><td>3000 ms</td></tr>
+<tr><td>Plugin version</td><td><code>.claude-plugin/plugin.json</code></td><td>bump on every behavior change</td></tr>
+</table>
+
+<h2 id="playbooks">12. Maintenance playbooks</h2>
+<h3>Add or change an agent</h3>
+<ol>
+<li>Create/edit <code>agents/&lt;name&gt;.md</code> with frontmatter <code>name</code>, <code>description</code>, <code>model</code>, <code>tools</code>. State: what to read, the single file to write, the first-line contract.</li>
+<li>Add the spawn step (using <code>software-factory:&lt;name&gt;</code>) and its parsing rule to <code>skills/factory/SKILL.md</code>.</li>
+<li>If it writes a new job file, add it to the dashboard's <code>FILES()</code> list and to the layout in §7.1 and the user guide.</li>
+<li>Update §6.2, §7.2, §7.5 here.</li>
+</ol>
+<h3>Add a reviewer (e.g. accessibility, performance)</h3>
+<ol>
+<li>Copy <code>agents/reviewer-code.md</code>; change name, focus, output filename.</li>
+<li>Orchestrator Loop step 4: add to the <code>full</code> list (and quick if wanted); add a <code>reviews.&lt;key&gt;</code> entry.</li>
+<li>Triager already reads every file in <code>round-N/</code>; approver reads all rounds, so no change.</li>
+<li>Dashboard: add the key to <code>REV</code> in <code>dashboard.html</code>; user guide tables.</li>
+</ol>
+<h3>Add a command</h3>
+<ol>
+<li>Add to "Commands" and a dedicated section in <code>skills/factory/SKILL.md</code>; define its board state, gates and caps.</li>
+<li>Add to README, user guide command table, §8 here. Consider whether <code>init</code>'s "next step" should recommend it.</li>
+</ol>
+<h3>Change the stage model</h3>
+<p>Edit the stage list in the orchestrator "board.json" section, the Loop, and <code>STAGES</code> in <code>dashboard.html</code> together. The dashboard silently drops jobs whose stage is not in <code>STAGES</code>.</p>
+<h3>Change a template</h3>
+<p>Edit <code>templates/…</code>. Existing projects do <b>not</b> receive updates (init never overwrites). For breaking changes, document manual steps in the release notes (see limitation L5).</p>
+<h3>Release</h3>
+<ol>
+<li>Edit; run <code>claude plugin validate .</code>.</li>
+<li>Smoke-test (§13).</li>
+<li>Bump <code>version</code> in <code>.claude-plugin/plugin.json</code>; add a line to §16.</li>
+<li>Commit. If the plugin is hosted in a git remote, push so users can update their marketplace.</li>
+</ol>
+
+<h2 id="testing">13. Testing</h2>
+<p>There are no automated tests; verification is by validation and smoke runs. Use a scratch directory and load the plugin from disk. Running from <code>--plugin-dir</code> may need <code>--add-dir &lt;plugin path&gt;</code> so <code>init</code> can read the templates.</p>
+<pre><code># static
+claude plugin validate .
+
+# init on an empty dir
+mkdir /tmp/t && cd /tmp/t
+claude -p "/software-factory:init" --plugin-dir $PL --add-dir $PL --permission-mode acceptEdits
+
+# init on a master-branch repo with code → expect default_branch "master", no rename
+# document on that repo → expect docs/decisions.md with Status: inferred + open-questions.md
+claude -p "/software-factory:factory document" --plugin-dir $PL --add-dir $PL --permission-mode acceptEdits
+
+# skills
+claude -p "/software-factory:grill headless run. Topic: …" --plugin-dir $PL   # expect log + intent doc, assumed marks
+claude -p "/software-factory:brainstorm …" --plugin-dir $PL                   # expect single kickoff question</code></pre>
+<p>Smoke tests already done during development: init (empty, and <code>master</code> repo with code), document (fixture repo), grill headless, brainstorm opening, plugin validation. <b>Not yet exercised end to end:</b> a full job (spec→build→review→triage→approve), rework, retro, all three plan passes, the PR/protected-branch path, the dashboard against a live board.</p>
+<div class="callout"><b>Suggested first full test.</b> In a scratch repo run <code>init</code>, then <code>/factory add a /health endpoint</code> on a tiny project with passing tests. Confirm: <code>jobs/001-…/</code> files appear in order, board stages advance, a branch <code>factory/001-…</code> exists with only code commits, merge lands on the default branch, a <code>factory: record job</code> commit follows, and the dashboard shows the card in <b>done</b>.</div>
+
+<h2 id="limits">14. Known limitations and risks</h2>
+<table>
+<tr><th>#</th><th>Limitation</th><th>Impact</th><th>Possible fix</th></tr>
+<tr><td>L1</td><td>Write-scope rules are prompt conventions, not enforced. Agents hold Write/Bash broadly.</td><td>A misbehaving agent could edit another file or board.json.</td><td>Hooks (PreToolUse) that block writes outside the agent's file; or a validation step after each agent that diffs <code>git status</code>.</td></tr>
+<tr><td>L2</td><td>Orchestrator is a long prompt executed by the model; state machine is not code.</td><td>Possible drift (skipped steps, wrong stage). Mitigated by first-line grammar and board updates.</td><td>Move parsing/transition checks into a small script; add a <code>/factory doctor</code> that validates board vs files.</td></tr>
+<tr><td>L3</td><td>One job at a time. Parallelism exists only inside a review round.</td><td>Throughput.</td><td>Use git worktrees per job; board already keyed by id.</td></tr>
+<tr><td>L4</td><td>Dashboard does not render <code>plan</code>/<code>document</code> state, <code>epic</code>, or severity counts; ignores jobs whose stage is unknown.</td><td>Planning progress invisible on the board.</td><td>Add a planning banner and epic grouping.</td></tr>
+<tr><td>L5</td><td>No template upgrade path: <code>init</code> never overwrites, so projects keep old <code>dashboard.html</code>/<code>userguide.html</code>.</td><td>Stale guides after plugin updates.</td><td><code>init --upgrade</code> that diffs and offers per-file replacement; version stamp inside templates.</td></tr>
+<tr><td>L6</td><td>Short <code>/factory</code> alias unverified; prompts use it for brevity.</td><td>Confusion in docs.</td><td>Confirm behavior and either rename or document.</td></tr>
+<tr><td>L7</td><td>Branch protection / PR flow is described but untested; no automatic PR creation.</td><td>Manual step for protected repos.</td><td>Use <code>gh pr create</code> when available and consented.</td></tr>
+<tr><td>L8</td><td>Cost: every job can spawn up to 8 agent runs per round (spec, build, 4 reviews, triage, approver) on Opus/Sonnet.</td><td>Token spend on large backlogs.</td><td>Prefer quick track; lower models; reduce reviewer set; skip UX/UI reviews for backend-only jobs (already N/A-able).</td></tr>
+<tr><td>L9</td><td>Planner PASS DOC depends on being allowed to run read-only/test commands; in restricted sessions it reports "not verified".</td><td>Test command may be unverified in <code>architecture.md</code>.</td><td>Orchestrator re-verifies the test command in preflight (already required for jobs).</td></tr>
+<tr><td>L10</td><td>Plan/document can be resumed from <code>board.json</code>, but partially written <code>docs/</code> files rely on the planner to merge rather than clobber.</td><td>Possible overwrite of human edits.</td><td>Commit docs after each approved pass (offered at finish; recommended after each pass).</td></tr>
+<tr><td>L11</td><td>Grill/brainstorm fact-finding uses sub-agents only when run in the main session (as by the orchestrator). Run inside a subagent they cannot spawn more.</td><td>Facts may be asked of the human.</td><td>Keep them orchestrator-invoked.</td></tr>
+</table>
+
+<h2 id="provenance">15. Provenance and licensing</h2>
+<ul>
+<li><b>zazencodes software-factory BUILD_PROMPT</b> (Season 3): the loop, file layout, verdict grammar, board/dashboard concept, commands.</li>
+<li><b>BMAD-METHOD</b> (<code>bmad-code-org/BMAD-METHOD</code>, MIT): right-sized tracks, project-context, review triage, retros, brainstorm facilitation, MoSCoW/pre-mortem/red-team, decision log and intent doc ideas. Implemented as original, condensed prompts; no BMAD code or scripts are bundled.</li>
+<li><b>mattpocock/skills <code>grilling</code></b> (MIT, © 2026 Matt Pocock): the base of <code>skills/grill/SKILL.md</code>, bundled with attribution. License text is in <code>NOTICE</code>; keep it when redistributing.</li>
+</ul>
+
+<h2 id="history">16. Version history</h2>
+<table>
+<tr><th>Version</th><th>Change</th></tr>
+<tr><td>1.0.0</td><td>Plugin packaging: orchestrator, 10 agents (incl. planner), init, templates, marketplace manifest.</td></tr>
+<tr><td>1.1.0</td><td>Bundled grill skill; grill used in plan Pass 1 and for specs with open decisions.</td></tr>
+<tr><td>1.2.0</td><td>BMAD practices: grill log/intent/headless/[open]-[recommend], brainstorm skill, MoSCoW + impact-effort in planner, pre-mortem, red-team notes.</td></tr>
+<tr><td>1.2.1</td><td>User guide workflows (idea; existing implementation).</td></tr>
+<tr><td>1.3.0</td><td>Configurable <code>default_branch</code>; <code>/factory document</code> (PASS DOC, inferred decisions).</td></tr>
+<tr><td>1.3.1</td><td>Preflight no longer blocks on factory state files; state committed on default branch after merge; builder never commits <code>factory/</code>/<code>docs/</code>; <code>.closedloop-ai/</code> untracked; this document.</td></tr>
+</table>
+
+<h2 id="glossary">17. Glossary</h2>
+<table>
+<tr><th>Term</th><th>Meaning</th></tr>
+<tr><td>Orchestrator</td><td>The <code>factory</code> skill running in the main session.</td></tr>
+<tr><td>Job</td><td>One feature moving through the loop; id <code>NNN-slug</code>; folder <code>factory/jobs/&lt;id&gt;/</code>.</td></tr>
+<tr><td>Track</td><td><code>quick</code> or <code>full</code>; decides the reviewer set.</td></tr>
+<tr><td>Round</td><td>One parallel review + triage cycle; <code>round-N/</code>.</td></tr>
+<tr><td>AC</td><td>Acceptance criterion; numbered in the spec; each needs evidence in <code>build.md</code>.</td></tr>
+<tr><td>Readiness gate</td><td>Check that a spec has intent, ACs and a test command before building.</td></tr>
+<tr><td>Triage routes</td><td><code>dismiss</code>, <code>patch</code>, <code>defer</code>, <code>decision</code>.</td></tr>
+<tr><td><code>needs-human</code></td><td>Stage meaning only a human command can proceed.</td></tr>
+<tr><td>Inferred decision</td><td>A decision recorded from code evidence, not confirmed by a human; becomes <code>accepted</code> when confirmed.</td></tr>
+<tr><td>Intent doc</td><td>Short brief (<code>docs/intent.md</code>) produced by grill/brainstorm as planner input.</td></tr>
+<tr><td>Headless</td><td>Unattended grill/brainstorm run; answers are assumed and listed for review.</td></tr>
+<tr><td>Scaffold job</td><td>Backlog item 1: project skeleton + passing test + commands + CI.</td></tr>
+<tr><td>Pre-mortem</td><td>Section of <code>architecture.md</code>: likely causes of failure and the decision that prevents each.</td></tr>
+<tr><td>MoSCoW</td><td>Must / Should / Could / Won't-this-time scope sort.</td></tr>
+</table>
+</main>
+</div>
+</body>
+</html>

@@ -102,7 +102,7 @@ th{background:var(--code)}
   <span class="step">5 Retro</span>
 </div>
 <ol>
-  <li><b>Prepare the repo.</b> Commit or stash your work (the factory needs a clean working tree). Be on your default branch (any name: <code>main</code>, <code>master</code>, <code>develop</code>…). <code>init</code> detects it and records it as <code>default_branch</code> in <code>factory/board.json</code>; jobs branch from it and merge back into it. Nothing is renamed. If your default branch is protected or needs pull requests, the factory pushes the job branch and asks you to open a PR instead of merging.</li>
+  <li><b>Prepare the repo.</b> Commit or stash your code changes (jobs need no uncommitted changes outside <code>factory/</code>, <code>docs/</code> and <code>CLAUDE.md</code>). Be on your default branch (any name: <code>main</code>, <code>master</code>, <code>develop</code>…). <code>init</code> detects it and records it as <code>default_branch</code> in <code>factory/board.json</code>; jobs branch from it and merge back into it. Nothing is renamed. If your default branch is protected or needs pull requests, the factory pushes the job branch and asks you to open a PR instead of merging.</li>
   <li><b>Init.</b> In the repo root:
 <pre><code>&gt; /software-factory:init</code></pre>
   It adds <code>factory/</code> and appends the project-context block to your existing <code>CLAUDE.md</code> (nothing is overwritten). Because code exists, it also looks for your test, lint and build commands, runs the tests once, and shows you the exact lines it proposes to write. Approve them.</li>
@@ -137,7 +137,7 @@ th{background:var(--code)}
 <ol>
   <li>Fill in <code>CLAUDE.md</code> under <b>Project context</b>. At minimum, set the <b>test command</b>. Without it, the readiness gate stops every job at <code>needs-human</code>.</li>
   <li>Add only facts an agent cannot learn from the code: policy, frozen paths, non-default conventions. Skip directory trees and tech-stack lists.</li>
-  <li>Make sure your working tree is clean and your default branch is checked out (<code>init</code> warns if not).</li>
+  <li>Make sure you have no uncommitted code changes and your default branch is checked out (<code>init</code> warns if not).</li>
   <li>Optional: start the dashboard.
 <pre><code>cd factory && python3 -m http.server 8000
 # open http://localhost:8000/dashboard.html</code></pre></li>

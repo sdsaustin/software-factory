@@ -26,7 +26,7 @@ You are the orchestrator. You coordinate the loop, spawn every agent, and are th
 Stages: `spec`, `build`, `review`, `triage`, `decision`, `needs-human`, `done`. Update it at every transition (read, modify, write whole file). Job id: `NNN-short-slug`, NNN = next integer.
 
 ## Preflight (every run)
-1. **Default branch**: read `default_branch` from `board.json`. If it is null or missing, detect it (`git symbolic-ref --short refs/remotes/origin/HEAD` minus `origin/`; else the checked-out branch if it is `main`, `master`, `develop` or `trunk`; else ask the human), confirm it exists locally, and write it to `board.json`. Never assume `main`. Wherever this file says "the default branch" or `main`, it means this value. The working tree must be clean and the default branch checked out; if not, stop and tell the human.
+1. **Default branch**: read `default_branch` from `board.json`. If it is null or missing, detect it (`git symbolic-ref --short refs/remotes/origin/HEAD` minus `origin/`; else the checked-out branch if it is `main`, `master`, `develop` or `trunk`; else ask the human), confirm it exists locally, and write it to `board.json`. Never assume `main`. Wherever this file says "the default branch" or `main`, it means this value. For job commands (`<feature>`, `next`, `rework`, `approve`) there must be no uncommitted changes OUTSIDE `factory/`, `docs/` and `CLAUDE.md` (factory state files are expected to be uncommitted while work is in flight) and the default branch must be checked out; if not, stop and tell the human. `plan`, `document`, `status`, `retro` and the grill/brainstorm skills have no such precondition.
 2. `CLAUDE.md` Project context must have a test command. If it is still `<TBD>`, the spec-writer may fill it in Baseline only if the stack exists; otherwise the job goes `needs-human` (reason: no test command). Exception: the scaffold job (first item after `/factory plan`) may have no test command yet; its acceptance criteria must establish one, and its Baseline is "none (empty project)".
 
 ## Loop
@@ -41,7 +41,7 @@ Stages: `spec`, `build`, `review`, `triage`, `decision`, `needs-human`, `done`. 
    - `TRIAGE: CLEAN` -> go to Decision.
    - `TRIAGE: DECISION` -> `needs-human` (list the decision items for the human).
    - `TRIAGE: PATCH` -> if N < 2, resume `builder-<id>` via SendMessage pointing at `round-N/triage.md`, then start round N+1. If N == 2, go to Decision (approver will likely ESCALATE).
-6. **Decision** (stage `decision`): spawn `approver`. First line of `decision.md`: `APPROVE` -> merge `factory/<id>` into the default branch (`git merge --no-ff`; if the repo has a protected default branch or an `origin` with required PRs, push the branch and tell the human to open a PR instead of merging locally), stage `done`, then offer a retro. `ESCALATE` -> stage `needs-human`.
+6. **Decision** (stage `decision`): spawn `approver`. First line of `decision.md`: `APPROVE` -> merge `factory/<id>` into the default branch (`git merge --no-ff`; if the repo has a protected default branch or an `origin` with required PRs, push the branch and tell the human to open a PR instead of merging locally), stage `done`, then commit the factory state on the default branch: `git add factory docs CLAUDE.md && git commit -m "factory: record job <id>"` (state files are never committed on a job branch). Then offer a retro. `ESCALATE` -> stage `needs-human`.
 7. Never skip reviews, never merge without APPROVE or `/factory approve`.
 
 ## Plan command
@@ -54,7 +54,7 @@ Use when there is a vision but no backlog or stack (BMAD's Clarify -> Plan). Thr
    c. Then spawn `planner` (PASS 1). Read `docs/open-questions.md`. If `QUESTIONS: n` with n > 0, put those questions to the human in the same grill format (numbered, with the planner's recommendation), append the answers to `docs/answers.md`, and re-run PASS 1 once. Then show a summary of `vision.md` and `product-brief.md` and ask for approval.
 2. **Pass 2 Architecture**: after approval, spawn `planner` (PASS 2). Show the decision list (id, title, choice), the test/run commands, and the **pre-mortem** from `architecture.md` (the likely failure causes and what prevents each). Ask for approval; the human may answer a pre-mortem item with a note, which re-runs the pass.
 3. **Pass 3 Epics and backlog**: spawn `planner` (PASS 3). Show epics, dependency order and the first 10 backlog items. Ask for approval.
-4. **Finish**: show `docs/claude-md-proposal.md` and, on approval, apply it to `CLAUDE.md` Project context (this is the one place you edit that file). Mark plan `done`. Tell the human the next step is `/factory next` (the first item is the scaffold job).
+4. **Finish**: show `docs/claude-md-proposal.md` and, on approval, apply it to `CLAUDE.md` Project context (this is the one place you edit that file). Mark plan `done`. Offer to commit `docs/ factory/ CLAUDE.md` ("factory: plan"). Tell the human the next step is `/factory next` (the first item is the scaffold job).
 
 At every gate the human can approve, or give notes. Save notes to `docs/plan-notes.md` (append, dated) and re-run that pass; at most 3 re-runs per pass before asking the human how to proceed. Do not start the next pass without approval.
 
@@ -69,7 +69,7 @@ Use on a project that already has code and no `docs/architecture.md`/`docs/decis
 Inferred decisions are binding for specs and reviews like any other, but reviewers must treat a conflict with an `inferred` decision as a question for the human, not a hard failure.
 
 ## approve / rework / retro
-- `approve <id>`: only for `needs-human`. Show `decision.md` first. Merge, stage `done`.
+- `approve <id>`: only for `needs-human`. Show `decision.md` first. Merge, stage `done`, then commit factory state exactly as in Loop step 6.
 - `rework <id> <note>`: append note to `build.md` under `## Human rework`, resume `builder-<id>` via SendMessage (spawn a fresh `builder` named `builder-<id>` pointing at the files if it no longer exists), then run a new review round. Does not reset the round cap: a human rework grants two more rounds.
 - `retro` (also after every 5 done jobs): spawn `retro`; append its learnings section to `factory/learnings.md`; show the human its `CLAUDE.md` pitfall proposals and apply only if approved.
 
