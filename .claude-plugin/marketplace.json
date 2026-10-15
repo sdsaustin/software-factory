@@ -1,0 +1,14 @@
+{
+  "name": "software-factory",
+  "description": "A file-based software factory for Claude Code.",
+  "owner": {
+    "name": "Sanjay S"
+  },
+  "plugins": [
+    {
+      "name": "software-factory",
+      "source": "./",
+      "description": "Plan a product from a vision, then build features through spec, parallel review, triage and approval, all driven by markdown files."
+    }
+  ]
+}

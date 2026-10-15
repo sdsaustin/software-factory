@@ -1,0 +1,236 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Factory User Guide</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--fg:#1c2330;--mut:#5f6877;--bd:#dde1e8;--acc:#3b5bdb;--pass:#1a7f4b;--chg:#c0392b;--warn:#b7791f;--code:#eef0f4}
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]){--bg:#12151b;--card:#1a1f28;--fg:#e6e9ef;--mut:#9aa3b2;--bd:#2a313d;--acc:#8aa0f7;--pass:#4cc38a;--chg:#ef6b5e;--warn:#e0a84a;--code:#232a35}}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.6 system-ui,sans-serif}
+.wrap{max-width:880px;margin:0 auto;padding:0 16px 64px}
+header{padding:32px 0 8px}
+h1{font-size:28px;margin:0 0 4px}
+h2{font-size:21px;margin:40px 0 8px;padding-top:8px;border-top:1px solid var(--bd)}
+h3{font-size:16px;margin:20px 0 4px}
+p,li{color:var(--fg)}
+.lead{color:var(--mut);margin:0}
+nav{display:flex;flex-wrap:wrap;gap:8px;margin:16px 0}
+nav a{font-size:13px;padding:4px 10px;border:1px solid var(--bd);border-radius:99px;color:var(--acc);text-decoration:none;background:var(--card)}
+code{background:var(--code);padding:1px 5px;border-radius:4px;font-size:.9em}
+pre{background:var(--code);padding:12px;border-radius:8px;overflow-x:auto;font-size:13px;line-height:1.5}
+pre code{background:none;padding:0}
+table{border-collapse:collapse;width:100%;font-size:14px;display:block;overflow-x:auto}
+th,td{border:1px solid var(--bd);padding:6px 10px;text-align:left;vertical-align:top}
+th{background:var(--code)}
+.flow{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:12px 0}
+.step{background:var(--card);border:1px solid var(--bd);border-radius:8px;padding:6px 10px;font-size:13px}
+.arrow{color:var(--mut)}
+.callout{border-left:4px solid var(--acc);background:var(--card);padding:8px 14px;border-radius:0 8px 8px 0;margin:12px 0}
+.callout.warn{border-color:var(--warn)}
+.pass{color:var(--pass);font-weight:600}.chg{color:var(--chg);font-weight:600}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <h1>Software Factory User Guide</h1>
+  <p class="lead">How to ship features with <code>/factory</code>: a spec, a build, four reviewers, a triage step and an approver, all driven by markdown files.</p>
+  <nav>
+    <a href="#idea">The idea</a><a href="#plan">Starting from a vision</a><a href="#setup">Setup</a><a href="#loop">The loop</a><a href="#commands">Commands</a>
+    <a href="#example">Worked example</a><a href="#files">Files</a><a href="#agents">Agents</a><a href="#dashboard">Dashboard</a>
+    <a href="#human">Your role</a><a href="#tips">Tips</a><a href="#trouble">Troubleshooting</a>
+  </nav>
+</header>
+
+<div class="callout"><b>Command names.</b> The factory ships as the <code>software-factory</code> plugin, so commands are namespaced: <code>/software-factory:factory ...</code> and <code>/software-factory:init</code>. Everywhere this guide writes <code>/factory</code>, use the namespaced form if the short one is not recognized.</div>
+<h2 id="idea">The idea</h2>
+<p>You describe a feature in one line. The factory turns it into a written spec, builds it on its own git branch, has independent reviewers check it, and either merges it or hands it to you with a clear question. You keep the decisions that need judgment; the factory handles the rest.</p>
+<ul>
+  <li><b>Files, not chat.</b> Every agent reads its context from files and writes exactly one file. Nothing depends on a conversation staying alive.</li>
+  <li><b>One writer of state.</b> Only the <code>/factory</code> session writes <code>factory/board.json</code>, so the dashboard never sees half-written state.</li>
+  <li><b>Process fits the size of the work.</b> Small changes use the <code>quick</code> track; larger ones use <code>full</code>.</li>
+  <li><b>You stay in control.</b> Anything uncertain becomes <code>needs-human</code>; nothing risky merges silently.</li>
+</ul>
+
+<h2 id="plan">Starting from just a vision</h2>
+<p>If you have only a vision statement and an idea, begin with <code>/factory plan</code>. It runs a <code>planner</code> agent in three passes and stops for your approval after each one. Nothing is built until the plan is approved.</p>
+<pre><code>&gt; /factory plan A tool that helps small SaaS teams get SOC 2 ready faster by
+  collecting evidence automatically and tracking controls.</code></pre>
+<table>
+  <tr><th>Pass</th><th>Planner writes</th><th>You do</th></tr>
+  <tr><td>1 Clarify</td><td><code>docs/vision.md</code>, <code>docs/product-brief.md</code>, <code>docs/open-questions.md</code></td><td>Answer a handful of questions (each has options and a recommendation). Your answers are saved to <code>docs/answers.md</code>. Approve the vision and brief.</td></tr>
+  <tr><td>2 Architecture</td><td><code>docs/architecture.md</code>, <code>docs/decisions.md</code> (one record per choice: stack, datastore, auth, hosting, tests, CI)</td><td>Approve the stack, or give notes. Notes go to <code>docs/plan-notes.md</code> and the pass re-runs.</td></tr>
+  <tr><td>3 Epics and backlog</td><td><code>docs/epics.md</code>, a dependency-ordered <code>factory/backlog.md</code>, and <code>docs/claude-md-proposal.md</code></td><td>Approve the order. On approval, the proposal is applied to <code>CLAUDE.md</code> (stack, test command, conventions).</td></tr>
+</table>
+<p>The first backlog item is always the <b>scaffold job</b>: a project skeleton with a passing test, documented commands and CI. It is allowed to run before a test command exists, and it establishes one. After that, run <code>/factory next</code> repeatedly.</p>
+<div class="callout">Every later spec, build and review also reads <code>docs/vision.md</code>, <code>docs/architecture.md</code>, <code>docs/decisions.md</code> and <code>docs/epics.md</code>, so small jobs stay consistent with the whole product and cannot silently contradict a recorded decision. When the last item of an epic merges, the factory runs a retro and reports which of the epic's "done when" checks hold.</div>
+<p>Backlog lines look like <code>- [ ] [E2] Evidence upload with audit trail</code>; the <code>[E2]</code> tag links the job to its epic. You can resume an interrupted plan with <code>/factory plan</code>. Each pass allows up to three re-runs on your notes before the factory asks how to proceed.</p>
+
+<h2 id="setup">One-time setup</h2>
+<ol>
+  <li>Fill in <code>CLAUDE.md</code> under <b>Project context</b>. At minimum, set the <b>test command</b>. Without it, the readiness gate stops every job at <code>needs-human</code>.</li>
+  <li>Add only facts an agent cannot learn from the code: policy, frozen paths, non-default conventions. Skip directory trees and tech-stack lists.</li>
+  <li>Make sure your working tree is clean and you are on <code>main</code>.</li>
+  <li>Optional: start the dashboard.
+<pre><code>cd factory && python3 -m http.server 8000
+# open http://localhost:8000/dashboard.html</code></pre></li>
+</ol>
+
+<h2 id="loop">The loop</h2>
+<div class="flow">
+  <span class="step">1 Spec</span><span class="arrow">→</span>
+  <span class="step">2 Readiness gate</span><span class="arrow">→</span>
+  <span class="step">3 Build</span><span class="arrow">→</span>
+  <span class="step">4 Review ×4</span><span class="arrow">→</span>
+  <span class="step">5 Triage</span><span class="arrow">→</span>
+  <span class="step">6 Approve</span><span class="arrow">→</span>
+  <span class="step">merged</span>
+</div>
+<table>
+  <tr><th>Step</th><th>Who</th><th>What happens</th><th>Output</th></tr>
+  <tr><td>1 Spec</td><td>spec-writer (Opus)</td><td>Drafts intent, non-goals, numbered acceptance criteria (AC), assumptions, open decisions, baseline test run. Picks the track.</td><td><code>spec.md</code></td></tr>
+  <tr><td>2 Gate</td><td>orchestrator</td><td>Needs intent, ACs and a test command. Open decisions mean a human must answer first.</td><td>board update</td></tr>
+  <tr><td>3 Build</td><td>builder (Opus)</td><td>Works on branch <code>factory/&lt;id&gt;</code>, writes tests per AC, commits, maps each AC to evidence.</td><td><code>build.md</code> + commits</td></tr>
+  <tr><td>4 Review</td><td>security (Opus); ux, ui, code (Sonnet)</td><td>Run in parallel against the diff and the spec's intent. Round is complete only when every file exists.</td><td><code>round-N/*.md</code></td></tr>
+  <tr><td>5 Triage</td><td>triager (Sonnet)</td><td>Verifies each finding, sets severity, routes it (see below).</td><td><code>round-N/triage.md</code></td></tr>
+  <tr><td>6 Decide</td><td>approver (Opus)</td><td><span class="pass">APPROVE</span> merges to <code>main</code>. <span class="chg">ESCALATE</span> marks <code>needs-human</code>.</td><td><code>decision.md</code></td></tr>
+</table>
+
+<h3>Quick vs full track</h3>
+<table>
+  <tr><th></th><th>quick</th><th>full</th></tr>
+  <tr><td>When</td><td>Small, obvious, one area</td><td>Touches auth, data, several areas or UI flows</td></tr>
+  <tr><td>Reviewers</td><td>security + code</td><td>security + ux + ui + code</td></tr>
+</table>
+
+<h3>How triage routes findings</h3>
+<table>
+  <tr><th>Route</th><th>Meaning</th><th>Effect</th></tr>
+  <tr><td><code>dismiss</code></td><td>Noise, refuted or unsubstantiated (reason recorded)</td><td>Ignored</td></tr>
+  <tr><td><code>patch</code></td><td>One clear fix</td><td>Builder fixes it next round</td></tr>
+  <tr><td><code>defer</code></td><td>Problem existed before this change. Problems the change caused are never deferred.</td><td>Logged, not fixed</td></tr>
+  <tr><td><code>decision</code></td><td>Several reasonable fixes or a product call</td><td>Job goes to <code>needs-human</code></td></tr>
+</table>
+<div class="callout"><b>Round cap.</b> At most two review rounds. If patch items remain after round 2, the approver decides, and will usually escalate. A <code>/factory rework</code> grants two more rounds.</div>
+
+<h2 id="commands">Commands</h2>
+<table>
+  <tr><th>Command</th><th>Use it to</th></tr>
+  <tr><td><code>/factory &lt;feature&gt;</code></td><td>Run a new job through the whole loop</td></tr>
+  <tr><td><code>/factory plan &lt;vision&gt;</code></td><td>Plan a whole product from a vision: brief, architecture decisions, epics, ordered backlog. Run it with no argument to resume.</td></tr>
+  <tr><td><code>/factory next</code></td><td>Run the first unchecked item in <code>factory/backlog.md</code></td></tr>
+  <tr><td><code>/factory status</code></td><td>Print the board: each job's stage, track and verdicts</td></tr>
+  <tr><td><code>/factory approve &lt;id&gt;</code></td><td>Merge a <code>needs-human</code> job after you have read its <code>decision.md</code></td></tr>
+  <tr><td><code>/factory rework &lt;id&gt; &lt;note&gt;</code></td><td>Send a job back to the builder with your feedback, then re-review</td></tr>
+  <tr><td><code>/factory retro</code></td><td>Review finished jobs and propose learnings (also offered every 5 done jobs)</td></tr>
+</table>
+
+<h2 id="example">Worked example</h2>
+<h3>A. Smooth run</h3>
+<pre><code>&gt; /factory add a GET /health endpoint that returns {"status":"ok"}</code></pre>
+<ol>
+  <li>Job <code>001-health-endpoint</code> is created. The spec-writer reads <code>CLAUDE.md</code>, runs the baseline tests and writes:
+<pre><code># Health endpoint
+Track: quick
+## Intent        Let monitors check that the service is up.
+## Non-goals     No dependency checks, no auth.
+## Acceptance criteria
+AC1: GET /health returns 200 and JSON {"status":"ok"}
+AC2: Response needs no authentication
+## Baseline      `npm test` - 42 passed
+## Open decisions (none)</code></pre></li>
+  <li>The gate passes. The builder creates <code>factory/001-health-endpoint</code>, adds the route and two tests, commits, and writes <code>build.md</code> mapping AC1 and AC2 to test names.</li>
+  <li>Quick track, so two reviewers run in parallel:
+<pre><code>round-1/security.md  VERDICT: PASS
+round-1/code.md      VERDICT: CHANGES   (code.md:  src/health.ts:12 - returns 200 even when shutting down? ...)</code></pre></li>
+  <li>The triager checks the code finding, finds it is outside the spec, and writes <code>TRIAGE: CLEAN</code> with that finding marked <code>dismiss: out of scope, see Non-goals</code>.</li>
+  <li>The approver re-runs tests, sees evidence for both ACs, and writes <code>APPROVE</code>. The orchestrator merges with <code>git merge --no-ff</code> and the card moves to <b>done</b>.</li>
+</ol>
+
+<h3>B. Needs a human</h3>
+<pre><code>&gt; /factory let users export audit evidence</code></pre>
+<p>The spec-writer lists under <b>Open decisions</b>: "Which formats (CSV, PDF)? Should exports be tenant-scoped?" The readiness gate sees open decisions and moves the job to <code>needs-human</code> before any code is written.</p>
+<pre><code>&gt; /factory rework 002-export-evidence use CSV only, tenant-scoped, max 10k rows</code></pre>
+<p>Your note is appended to the spec/build files and the job continues. Answering questions early is cheaper than reviewing the wrong build.</p>
+
+<h3>C. Escalation after review</h3>
+<p>Round 1: security reports a missing authorization check (high). Triage verifies it, marks it <code>patch</code>. The builder is resumed (same <code>builder-&lt;id&gt;</code> agent) and fixes it. Round 2: all pass. If instead round 2 still had a high-severity patch item, the approver would write <code>ESCALATE</code> with a specific question, and you would run:</p>
+<pre><code>&gt; /factory approve 003-roles-page      # accept as is, after reading decision.md
+&gt; /factory rework 003-roles-page ...   # or send it back</code></pre>
+
+<h2 id="files">Where everything lives</h2>
+<pre><code>CLAUDE.md                          project context (read by every agent)
+.claude/skills/factory/SKILL.md    the orchestrator's instructions
+.claude/agents/*.md                one file per agent role
+docs/                              vision, brief, architecture, decisions, epics (from /factory plan)
+factory/
+  board.json                       job state (orchestrator writes it)
+  backlog.md                       queue for /factory next
+  learnings.md                     lessons from retros, read by all agents
+  dashboard.html                   the live board
+  userguide.html                   this page
+  jobs/&lt;id&gt;/
+    spec.md  build.md  decision.md
+    round-1/  security.md ux.md ui.md code.md triage.md
+    round-2/  ...</code></pre>
+<p>First-line conventions let the orchestrator read results reliably:</p>
+<table>
+  <tr><th>File</th><th>First line</th></tr>
+  <tr><td>reviews</td><td><code>VERDICT: PASS</code> or <code>VERDICT: CHANGES</code></td></tr>
+  <tr><td>triage.md</td><td><code>TRIAGE: CLEAN</code>, <code>PATCH</code> or <code>DECISION</code></td></tr>
+  <tr><td>decision.md</td><td><code>APPROVE</code> or <code>ESCALATE</code></td></tr>
+</table>
+
+<h2 id="agents">The agents</h2>
+<table>
+  <tr><th>Agent</th><th>Model</th><th>Writes</th><th>Can change code?</th></tr>
+  <tr><td>planner</td><td>Opus</td><td>docs/*.md, backlog.md (only via <code>/factory plan</code>)</td><td>No</td></tr>
+  <tr><td>spec-writer</td><td>Opus</td><td>spec.md</td><td>No</td></tr>
+  <tr><td>builder</td><td>Opus</td><td>build.md + branch commits</td><td>Yes, only on <code>factory/&lt;id&gt;</code></td></tr>
+  <tr><td>reviewer-security</td><td>Opus</td><td>round-N/security.md</td><td>No</td></tr>
+  <tr><td>reviewer-ux / ui / code</td><td>Sonnet</td><td>round-N/ux, ui, code.md</td><td>No</td></tr>
+  <tr><td>triager</td><td>Sonnet</td><td>round-N/triage.md</td><td>No</td></tr>
+  <tr><td>approver</td><td>Opus</td><td>decision.md</td><td>No (never merges)</td></tr>
+  <tr><td>retro</td><td>Sonnet</td><td>retro-proposal.md</td><td>No</td></tr>
+</table>
+
+<h2 id="dashboard">The dashboard</h2>
+<p>Run the server shown in Setup and open <code>dashboard.html</code>. It refreshes every 3 seconds.</p>
+<ul>
+  <li>Columns follow the stages: spec, build, review, triage, decision, needs-human, done.</li>
+  <li>Each card shows the track and one chip per reviewer per round: <span class="pass">PASS</span>, <span class="chg">CHANGES</span> or grey while pending.</li>
+  <li><code>needs-human</code> cards are outlined in amber. Those are the ones waiting on you.</li>
+  <li>Click a card to read its spec, build notes, reviews, triage and decision.</li>
+</ul>
+
+<h2 id="human">Your role</h2>
+<ul>
+  <li><b>Write good one-liners.</b> State the outcome, not the implementation.</li>
+  <li><b>Answer open decisions</b> when a job lands in <code>needs-human</code>. Read <code>decision.md</code> before approving.</li>
+  <li><b>Approve changes to <code>CLAUDE.md</code></b> that the retro proposes. The factory never edits your project context on its own.</li>
+  <li><b>Own security calls.</b> Anything touching auth, tenant isolation or audit data is a good candidate for your own read even after APPROVE.</li>
+</ul>
+
+<h2 id="tips">Tips</h2>
+<ul>
+  <li>Queue work in <code>backlog.md</code> as <code>- [ ] description</code> lines and run <code>/factory next</code> repeatedly.</li>
+  <li>Keep jobs small. A spec with more than five ACs is usually two jobs.</li>
+  <li>When an agent keeps making the same mistake, record it as an <b>Observed pitfall</b> in <code>CLAUDE.md</code>. Add rules only after you have seen the mistake, and keep a rule even if nothing has broken recently.</li>
+  <li>Completed job folders stay in <code>factory/jobs/</code>; retros and later builds learn from them.</li>
+</ul>
+
+<h2 id="trouble">Troubleshooting</h2>
+<table>
+  <tr><th>Symptom</th><th>Likely cause and fix</th></tr>
+  <tr><td>Job stops at <code>needs-human</code> immediately</td><td>Test command missing in <code>CLAUDE.md</code>, or the spec has open decisions. Check <code>spec.md</code>.</td></tr>
+  <tr><td>"Working tree must be clean"</td><td>Commit or stash your changes, then rerun.</td></tr>
+  <tr><td>Dashboard says it cannot load board.json</td><td>Serve it: run <code>python3 -m http.server</code> inside <code>factory/</code>; opening the file directly will not work.</td></tr>
+  <tr><td>A review file is missing</td><td>The round is incomplete by design. The orchestrator waits, and re-runs an agent once if its file is malformed.</td></tr>
+  <tr><td>Merge fails</td><td>Another job changed the same files. Run <code>/factory rework &lt;id&gt; rebase on main and resolve conflicts</code>.</td></tr>
+</table>
+</div>
+</body>
+</html>

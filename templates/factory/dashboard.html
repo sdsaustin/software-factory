@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Software Factory</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--fg:#1c2330;--mut:#6b7482;--bd:#dde1e8;--pass:#1a7f4b;--chg:#c0392b;--pend:#9aa3b0;--warn:#b7791f;--acc:#3b5bdb}
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]){--bg:#12151b;--card:#1a1f28;--fg:#e6e9ef;--mut:#8f98a8;--bd:#2a313d;--pass:#4cc38a;--chg:#ef6b5e;--pend:#5d6676;--warn:#e0a84a;--acc:#7c93f5}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.4 system-ui,sans-serif}
+header{padding:16px;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
+h1{font-size:18px;margin:0}
+#meta{color:var(--mut);font-size:12px}
+main{display:grid;grid-template-columns:repeat(7,minmax(160px,1fr));gap:12px;padding:0 16px 16px;overflow-x:auto}
+.col h2{font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:var(--mut);margin:0 0 8px}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:8px;padding:10px;margin-bottom:8px;cursor:pointer}
+.card.nh{border-color:var(--warn);box-shadow:0 0 0 2px color-mix(in srgb,var(--warn) 30%,transparent)}
+.card b{display:block;margin-bottom:4px}
+.badge{font-size:11px;padding:1px 6px;border-radius:99px;border:1px solid var(--bd);color:var(--mut)}
+.round{margin-top:6px;font-size:11px;color:var(--mut)}
+.chip{display:inline-block;font-size:11px;padding:1px 6px;border-radius:4px;margin:2px 2px 0 0;color:#fff;background:var(--pend)}
+.chip.PASS{background:var(--pass)}.chip.CHANGES{background:var(--chg)}
+#viewer{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);padding:16px;overflow:auto}
+#viewer .box{background:var(--card);max-width:820px;margin:0 auto;border-radius:8px;padding:16px}
+#viewer pre{white-space:pre-wrap;word-break:break-word}
+#viewer button{margin:0 4px 8px 0;cursor:pointer}
+.empty{color:var(--mut);font-size:12px}
+</style>
+</head>
+<body>
+<header><h1>Software Factory</h1><span id="meta"></span></header>
+<main id="board"></main>
+<div id="viewer"><div class="box"><div id="tabs"></div><pre id="content"></pre><button onclick="viewer.style.display='none'">Close</button></div></div>
+<script>
+const STAGES=["spec","build","review","triage","decision","needs-human","done"];
+const REV=["security","ux","ui","code"];
+const FILES=(j)=>["spec.md","build.md","decision.md",...Object.keys(j.reviews||{}).flatMap(n=>[...REV.map(r=>`round-${n}/${r}.md`),`round-${n}/triage.md`])];
+const $=id=>document.getElementById(id);
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+async function load(){
+  try{
+    const b=await (await fetch("board.json?"+Date.now())).json();
+    render(b.jobs||[]);
+    $("meta").textContent="Updated "+new Date().toLocaleTimeString()+" · "+(b.jobs||[]).length+" jobs";
+  }catch(e){$("meta").textContent="Cannot load board.json (serve from factory/ with python3 -m http.server)"}
+}
+function render(jobs){
+  $("board").innerHTML=STAGES.map(s=>{
+    const cards=jobs.filter(j=>j.stage===s).map(card).join("")||'<div class="empty">—</div>';
+    return `<section class="col"><h2>${s}</h2>${cards}</section>`;
+  }).join("");
+}
+function card(j){
+  const rounds=Object.entries(j.reviews||{}).map(([n,r])=>
+    `<div class="round">Round ${esc(n)}: ${REV.map(k=>`<span class="chip ${esc(r[k]||"")}">${k}: ${esc(r[k]||"pending")}</span>`).join("")}${r.triage?`<span class="chip">triage: ${esc(r.triage)}</span>`:""}</div>`).join("");
+  return `<div class="card ${j.stage==="needs-human"?"nh":""}" onclick='openJob(${JSON.stringify(j.id)})'>
+    <b>${esc(j.id)}</b>${esc(j.title||"")}<div><span class="badge">${esc(j.track||"?")}</span> ${j.decision?`<span class="badge">${esc(j.decision)}</span>`:""}</div>${rounds}</div>`;
+}
+let jobsCache=[];
+async function openJob(id){
+  const b=await (await fetch("board.json?"+Date.now())).json();
+  const j=b.jobs.find(x=>x.id===id);
+  $("tabs").innerHTML=FILES(j).map(f=>`<button onclick='showFile(${JSON.stringify(id)},${JSON.stringify(f)})'>${esc(f)}</button>`).join("");
+  $("viewer").style.display="block";
+  showFile(id,"spec.md");
+}
+async function showFile(id,f){
+  try{const r=await fetch(`jobs/${id}/${f}?`+Date.now());$("content").textContent=r.ok?await r.text():"(not written yet)"}
+  catch(e){$("content").textContent="(unavailable)"}
+}
+load();setInterval(load,3000);
+</script>
+</body>
+</html>
