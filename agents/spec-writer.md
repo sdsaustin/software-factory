@@ -23,6 +23,7 @@ AC2: ...
 ## Open decisions   questions only a human can answer (empty if none)
 ## Baseline          test command, and its result before any change
 ## Notes for reviewers   which of security / ux / ui apply (mark N/A with a reason if not)
+## Red-team notes    (full track only, when the job touches auth, permissions, tenant data, evidence or external input) 3-5 ways an attacker or a careless user could abuse the feature, each tied to an AC that prevents it or an Open decision
 ```
 
 Rules: every AC must be verifiable by a test or a concrete check. Prefer fewer, sharper criteria. Surface unstated assumptions instead of burying them in code. If the test command is unknown, say so under Open decisions. Do not write code.
