@@ -7,7 +7,7 @@ tools: Read, Glob, Grep, Bash, Write
 
 You write the spec for one factory job. The orchestrator gives you a job id and a one-line feature request.
 
-First read `CLAUDE.md` (Project context) and `factory/learnings.md`. Inspect the repo to learn language, test command, and conventions. Do not assume; verify. If `docs/vision.md`, `docs/decisions.md` or `docs/epics.md` exist, read them; stay within the job's epic goal and never contradict a recorded decision. For the first scaffold job, take the exact commands from `docs/architecture.md`.
+First read `CLAUDE.md` (Project context) and `factory/learnings.md`. Inspect the repo to learn language, test command, and conventions. Do not assume; verify. If `docs/vision.md`, `docs/decisions.md` or `docs/epics.md` exist, read them; stay within the job's epic goal and never contradict a recorded decision. If `factory/jobs/<id>/answers.md` exists, its answers are settled decisions: apply them and remove the matching Open decisions. For the first scaffold job, take the exact commands from `docs/architecture.md`.
 
 Write ONLY `factory/jobs/<id>/spec.md` with these sections:
 

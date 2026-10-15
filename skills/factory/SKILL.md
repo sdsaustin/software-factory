@@ -15,6 +15,7 @@ You are the orchestrator. You coordinate the loop, spawn every agent, and are th
 ## Commands
 - `/factory <feature>`: new job. `/factory next`: first unchecked item in `factory/backlog.md` (tick it when started).
 - `/factory approve <id>`: merge a `needs-human` job. `/factory rework <id> <note>`: send back to the builder with the note.
+- `/software-factory:grill [topic]` (separate skill): stress-test any plan or idea, one round of questions at a time.
 - `/factory status`: print the board. `/factory retro`: run the retro agent.
 - `/factory plan <vision>` (or `/factory plan` to continue/resume): plan a whole product from a vision. See **Plan command**.
 
@@ -28,7 +29,7 @@ Stages: `spec`, `build`, `review`, `triage`, `decision`, `needs-human`, `done`. 
 
 ## Loop
 1. **Spec** (stage `spec`): spawn `spec-writer` with the job id and request. Output: `factory/jobs/<id>/spec.md`, which declares `Track: quick|full`.
-2. **Readiness gate**: spec must have Intent, numbered Acceptance criteria, and a test command in Baseline. Non-empty "Open decisions" -> `needs-human`. Missing pieces -> re-run spec-writer once, then `needs-human`.
+2. **Readiness gate**: spec must have Intent, numbered Acceptance criteria, and a test command in Baseline. Non-empty "Open decisions" -> stage `needs-human`, then GRILL the human right away: invoke Skill `software-factory:grill` seeded with those decisions, answers written to `factory/jobs/<id>/answers.md`; re-run spec-writer once with that file (it must treat answers as settled); if decisions remain, stay `needs-human`. Missing pieces -> re-run spec-writer once, then `needs-human`.
 3. **Build** (stage `build`, round 0): spawn `builder` named `builder-<id>` on branch `factory/<id>`. Output: `build.md`.
 4. **Review** (stage `review`, round N starting at 1): create `round-N/`.
    - `full` track: spawn `reviewer-security`, `reviewer-ux`, `reviewer-ui`, `reviewer-code` IN PARALLEL (one message). 
@@ -45,7 +46,7 @@ Stages: `spec`, `build`, `review`, `triage`, `decision`, `needs-human`, `done`. 
 Use when there is a vision but no backlog or stack (BMAD's Clarify -> Plan). Three passes, each a `planner` run followed by a human approval gate. Track state in `board.json` as `"plan":{"pass":1|2|3,"status":"running|awaiting-questions|awaiting-approval|approved|done"}` (you write it).
 
 0. **Start**: if `/factory plan <vision>`, write the vision text verbatim to `docs/vision-input.md`. If a plan is in progress, resume from `board.json`. Never overwrite approved pass outputs; re-running a pass requires the human to say so.
-1. **Pass 1 Clarify**: spawn `planner` (PASS 1). Read `docs/open-questions.md`. If `QUESTIONS: n` with n > 0, ask the human each question in chat (AskUserQuestion, with the planner's options and recommendation), save the answers verbatim to `docs/answers.md`, and re-run PASS 1 once. Then show a summary of `vision.md` and `product-brief.md` and ask for approval.
+1. **Pass 1 Clarify**: first GRILL the human on the raw vision: invoke the Skill tool with `software-factory:grill`, seeded with `docs/vision-input.md`, answers written to `docs/answers.md`. Skip the grill only if the human says "skip grill". Then spawn `planner` (PASS 1). Read `docs/open-questions.md`. If `QUESTIONS: n` with n > 0, put those questions to the human in the same grill format (numbered, with the planner's recommendation), append the answers to `docs/answers.md`, and re-run PASS 1 once. Then show a summary of `vision.md` and `product-brief.md` and ask for approval.
 2. **Pass 2 Architecture**: after approval, spawn `planner` (PASS 2). Show the decision list (id, title, choice) and the test/run commands. Ask for approval.
 3. **Pass 3 Epics and backlog**: spawn `planner` (PASS 3). Show epics, dependency order and the first 10 backlog items. Ask for approval.
 4. **Finish**: show `docs/claude-md-proposal.md` and, on approval, apply it to `CLAUDE.md` Project context (this is the one place you edit that file). Mark plan `done`. Tell the human the next step is `/factory next` (the first item is the scaffold job).

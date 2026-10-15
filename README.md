@@ -17,6 +17,7 @@ In any project:
 /software-factory:init                                  # one-time setup
 /software-factory:factory plan <your vision>            # no code yet: brief, architecture, epics, backlog
 /software-factory:factory <feature>                     # run one feature through the loop
+/software-factory:grill [topic]                         # stress-test any idea, plan or spec (bundled, no other plugin needed)
 /software-factory:factory next | status | retro
 /software-factory:factory approve <id> | rework <id> <note>
 ```
@@ -27,6 +28,7 @@ In any project:
 |---|---|
 | `skills/factory/SKILL.md` | Orchestrator (sole writer of `factory/board.json`) |
 | `skills/init/SKILL.md` | Project initializer |
+| `skills/grill/SKILL.md` | "Grill me" interviewer, adapted from mattpocock/skills (MIT, see `NOTICE`) |
 | `agents/` | planner, spec-writer, builder, reviewer-security/ux/ui/code, triager, approver, retro |
 | `templates/` | Files copied into the project by `init` |
 

@@ -53,6 +53,7 @@ th{background:var(--code)}
   <li><b>One writer of state.</b> Only the <code>/factory</code> session writes <code>factory/board.json</code>, so the dashboard never sees half-written state.</li>
   <li><b>Process fits the size of the work.</b> Small changes use the <code>quick</code> track; larger ones use <code>full</code>.</li>
   <li><b>You stay in control.</b> Anything uncertain becomes <code>needs-human</code>; nothing risky merges silently.</li>
+  <li><b>It grills before it guesses.</b> When the factory needs decisions (a raw vision, or a spec with open questions) it interviews you with the bundled <code>grill</code> skill: numbered questions in rounds, each with a recommended answer, until nothing is left assumed. You can also run <code>/software-factory:grill &lt;topic&gt;</code> on any idea.</li>
 </ul>
 
 <h2 id="plan">Starting from just a vision</h2>
@@ -61,7 +62,7 @@ th{background:var(--code)}
   collecting evidence automatically and tracking controls.</code></pre>
 <table>
   <tr><th>Pass</th><th>Planner writes</th><th>You do</th></tr>
-  <tr><td>1 Clarify</td><td><code>docs/vision.md</code>, <code>docs/product-brief.md</code>, <code>docs/open-questions.md</code></td><td>Answer a handful of questions (each has options and a recommendation). Your answers are saved to <code>docs/answers.md</code>. Approve the vision and brief.</td></tr>
+  <tr><td>1 Clarify</td><td><code>docs/vision.md</code>, <code>docs/product-brief.md</code>, <code>docs/open-questions.md</code></td><td>Get grilled on your vision in rounds of numbered questions (each with a recommended answer), then answer any the planner adds. Your answers are saved to <code>docs/answers.md</code>. Approve the vision and brief.</td></tr>
   <tr><td>2 Architecture</td><td><code>docs/architecture.md</code>, <code>docs/decisions.md</code> (one record per choice: stack, datastore, auth, hosting, tests, CI)</td><td>Approve the stack, or give notes. Notes go to <code>docs/plan-notes.md</code> and the pass re-runs.</td></tr>
   <tr><td>3 Epics and backlog</td><td><code>docs/epics.md</code>, a dependency-ordered <code>factory/backlog.md</code>, and <code>docs/claude-md-proposal.md</code></td><td>Approve the order. On approval, the proposal is applied to <code>CLAUDE.md</code> (stack, test command, conventions).</td></tr>
 </table>
