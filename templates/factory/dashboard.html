@@ -35,7 +35,7 @@ main{display:grid;grid-template-columns:repeat(7,minmax(160px,1fr));gap:12px;pad
 <script>
 const STAGES=["spec","build","review","triage","decision","needs-human","done"];
 const REV=["security","ux","ui","code"];
-const FILES=(j)=>["spec.md","build.md","decision.md",...Object.keys(j.reviews||{}).flatMap(n=>[...REV.map(r=>`round-${n}/${r}.md`),`round-${n}/triage.md`])];
+const FILES=(j)=>["spec.md","build.md","verify.md","branch.diff","decision.md",...Object.keys(j.reviews||{}).flatMap(n=>[...REV.map(r=>`round-${n}/${r}.md`),`round-${n}/triage.md`])];
 const $=id=>document.getElementById(id);
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 async function load(){
