@@ -39,7 +39,7 @@ th{background:var(--code)}
   <h1>Software Factory User Guide</h1>
   <p class="lead">How to ship features with <code>/factory</code>: a spec, a build, four reviewers, a triage step and an approver, all driven by markdown files.</p>
   <nav>
-    <a href="#idea">The idea</a><a href="#plan">Starting from a vision</a><a href="#setup">Setup</a><a href="#loop">The loop</a><a href="#commands">Commands</a>
+    <a href="#idea">The idea</a><a href="#workflows">Which workflow?</a><a href="#wf-idea">A: from an idea</a><a href="#wf-existing">B: existing code</a><a href="#plan">Planning detail</a><a href="#setup">Setup</a><a href="#loop">The loop</a><a href="#commands">Commands</a>
     <a href="#example">Worked example</a><a href="#files">Files</a><a href="#agents">Agents</a><a href="#dashboard">Dashboard</a>
     <a href="#human">Your role</a><a href="#tips">Tips</a><a href="#trouble">Troubleshooting</a>
   </nav>
@@ -56,7 +56,67 @@ th{background:var(--code)}
   <li><b>It grills before it guesses.</b> When the factory needs decisions (a raw vision, or a spec with open questions) it interviews you with the bundled <code>grill</code> skill: numbered questions in rounds, each with a recommended answer, until nothing is left assumed. You can also run <code>/software-factory:grill &lt;topic&gt;</code> on any idea.</li>
 </ul>
 
-<h2 id="plan">Starting from just a vision</h2>
+<h2 id="workflows">Which workflow do I follow?</h2>
+<table>
+  <tr><th>Where you are</th><th>Follow</th></tr>
+  <tr><td>I only have an idea or a vision statement</td><td><a href="#wf-idea">Workflow A: start from an idea</a></td></tr>
+  <tr><td>I have a very vague idea (a sentence or two)</td><td>Workflow A; brainstorming runs first automatically</td></tr>
+  <tr><td>I have working code and want to add features</td><td><a href="#wf-existing">Workflow B: existing implementation</a></td></tr>
+  <tr><td>I have code and a big new capability (more than a few jobs)</td><td>Workflow B, plus the "big feature" step</td></tr>
+</table>
+
+<h3 id="wf-idea">Workflow A: start from an idea</h3>
+<div class="flow">
+  <span class="step">1 Init</span><span class="arrow">→</span>
+  <span class="step">2 Plan (3 passes)</span><span class="arrow">→</span>
+  <span class="step">3 Scaffold job</span><span class="arrow">→</span>
+  <span class="step">4 Feature loop</span><span class="arrow">→</span>
+  <span class="step">5 Retro</span>
+</div>
+<ol>
+  <li><b>Init.</b> Create an empty folder, open Claude Code in it and run:
+<pre><code>&gt; /software-factory:init</code></pre>
+  It creates the git repo (branch <code>main</code>), <code>factory/</code>, and a project-context block in <code>CLAUDE.md</code> with <code>&lt;TBD&gt;</code> for the test command. That is expected for now.</li>
+  <li><b>Plan.</b> Give the factory your idea in your own words:
+<pre><code>&gt; /software-factory:factory plan A tool that helps small SaaS teams get SOC 2 ready
+  faster by collecting evidence automatically and tracking controls.</code></pre>
+  <ul>
+    <li><b>Pass 1, Clarify.</b> If the idea is thin, you are brainstormed first (the coach asks, you generate, then MoSCoW narrows). Then you are grilled in rounds. Answer every question; <code>[open]</code> ones have no suggested answer on purpose. <b>You approve</b> <code>docs/vision.md</code> and <code>docs/product-brief.md</code>.</li>
+    <li><b>Pass 2, Architecture.</b> The planner proposes the stack as numbered decisions (<code>docs/decisions.md</code>) and a <b>pre-mortem</b> listing how the product most likely fails. Push back on anything: your note re-runs the pass. <b>You approve.</b></li>
+    <li><b>Pass 3, Epics and backlog.</b> You get epics with "done when" checks and an ordered <code>factory/backlog.md</code>. <b>You approve</b>, then approve the proposed <code>CLAUDE.md</code> block (stack, test command, conventions). Nothing is built yet.</li>
+  </ul></li>
+  <li><b>Scaffold job.</b> Backlog item 1 is always the project skeleton with a passing test, documented commands and CI:
+<pre><code>&gt; /software-factory:factory next</code></pre>
+  It may run without a test command, because its acceptance criteria create one. After it merges, every later job has a real baseline.</li>
+  <li><b>Feature loop.</b> Repeat <code>/software-factory:factory next</code> for each backlog item. Keep the dashboard open. When a card turns amber (<code>needs-human</code>), read its <code>decision.md</code> or answer its questions, then <code>approve</code> or <code>rework</code>. Anything beyond the plan goes in with <code>/software-factory:factory &lt;feature&gt;</code> or as a new <code>- [ ]</code> line in <code>backlog.md</code>.</li>
+  <li><b>Retro.</b> When an epic's last item merges, the factory reports which of its "done when" checks hold. Run <code>/software-factory:factory retro</code> now and then (it is offered every 5 finished jobs); approve the lessons you want added to <code>CLAUDE.md</code>.</li>
+</ol>
+<div class="callout"><b>Tip.</b> Commit after each approved planning pass. The <code>docs/</code> files are the product's memory; every later agent reads them.</div>
+
+<h3 id="wf-existing">Workflow B: you already have an implementation</h3>
+<div class="flow">
+  <span class="step">1 Init in the repo</span><span class="arrow">→</span>
+  <span class="step">2 Confirm context</span><span class="arrow">→</span>
+  <span class="step">3 Add features</span><span class="arrow">→</span>
+  <span class="step">4 Review and merge</span><span class="arrow">→</span>
+  <span class="step">5 Retro</span>
+</div>
+<ol>
+  <li><b>Prepare the repo.</b> Commit or stash your work (the factory needs a clean working tree). The factory merges finished jobs into <code>main</code>, so use <code>main</code> as your default branch; if yours has another name, rename it before the first job.</li>
+  <li><b>Init.</b> In the repo root:
+<pre><code>&gt; /software-factory:init</code></pre>
+  It adds <code>factory/</code> and appends the project-context block to your existing <code>CLAUDE.md</code> (nothing is overwritten). Because code exists, it also looks for your test, lint and build commands, runs the tests once, and shows you the exact lines it proposes to write. Approve them.</li>
+  <li><b>Confirm context.</b> Open <code>CLAUDE.md</code> and add only what an agent cannot learn from the code: policy, frozen or generated paths, non-default conventions, and mistakes you have actually seen. Skip directory trees and tech-stack lists. If you know major architectural decisions, add a few lines to <code>docs/decisions.md</code> too; every agent reads it and will not contradict it. You do <b>not</b> need <code>/factory plan</code>.</li>
+  <li><b>Add a feature.</b>
+<pre><code>&gt; /software-factory:factory add CSV export to the evidence list, tenant-scoped</code></pre>
+  The spec-writer inspects your repo, records a baseline test run, and picks the track (<code>quick</code> or <code>full</code>). Open decisions trigger a short grill. Then build, review, triage and approval run as in <a href="#loop">The loop</a>.</li>
+  <li><b>Queue more.</b> Put features in <code>factory/backlog.md</code> as <code>- [ ] description</code> lines, then run <code>/software-factory:factory next</code> repeatedly. Keep each job small: five acceptance criteria or fewer.</li>
+  <li><b>Big feature (several jobs).</b> Do not push it through as one job. Run <code>/software-factory:grill &lt;the capability&gt;</code> (or <code>/software-factory:brainstorm</code> if it is still fuzzy) to settle the decisions into <code>docs/intent.md</code>, then split the result into backlog lines yourself or ask Claude to. Record the key decisions in <code>docs/decisions.md</code> so later jobs stay consistent.</li>
+  <li><b>Review, merge, learn.</b> Handle <code>needs-human</code> cards with <code>approve</code> or <code>rework</code>. Run <code>/software-factory:factory retro</code> now and then, and approve the pitfalls it proposes for <code>CLAUDE.md</code>.</li>
+</ol>
+<div class="callout warn"><b>Existing code, existing problems.</b> Reviews judge the change against its spec. Problems that predate it are triaged as <code>defer</code> and logged, not fixed silently. If your baseline tests are already failing, the spec records that, so the builder is not blamed for it.</div>
+
+<h2 id="plan">Planning in detail (Workflow A, step 2)</h2>
 <p>If you have only a vision statement and an idea, begin with <code>/factory plan</code>. It runs a <code>planner</code> agent in three passes and stops for your approval after each one. Nothing is built until the plan is approved.</p>
 <pre><code>&gt; /factory plan A tool that helps small SaaS teams get SOC 2 ready faster by
   collecting evidence automatically and tracking controls.</code></pre>
