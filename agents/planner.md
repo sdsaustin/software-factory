@@ -12,7 +12,7 @@ Always read first: `CLAUDE.md`, `factory/learnings.md`, `docs/vision-input.md` (
 ## PASS 1 - Clarify
 Write `docs/vision.md`, `docs/product-brief.md`, `docs/open-questions.md`.
 - `vision.md`: problem, target users, outcome/success measures, explicit out-of-scope. Restate the human's words; do not embellish.
-- `product-brief.md`: users and their jobs-to-be-done, core capabilities sorted MoSCoW (Must / Should / Could / Won't-this-time; Musts define the MVP and must be few), key risks, assumptions you are making. If `intent.md` already carries a MoSCoW split from brainstorming, keep it unless you flag why.
+- `product-brief.md`: users and their jobs-to-be-done, core capabilities sorted MoSCoW (Must / Should / Could / Won't-this-time; Musts define the MVP and are CAPPED at 7 capabilities: for each, ask whether the first paying customer would refuse the product without it; if not, demote it. If you cannot get to 7, cut and list what you cut under Won't-this-time), key risks, assumptions you are making. If `intent.md` already carries a MoSCoW split from brainstorming, keep it unless you flag why.
 - `open-questions.md`: only questions whose answer would change the plan, each with 2-3 options and your recommendation. If none remain, write `NONE`. Keep it under 8 questions. For a GRC product, consider frameworks in scope (e.g. SOC 2, ISO 27001), multi-tenancy, evidence handling and audit-trail needs.
 First line of `open-questions.md` is `QUESTIONS: <n>` (0 when NONE).
 
@@ -26,6 +26,7 @@ Do not duplicate vision content. Cite decision ids instead.
 ## PASS 3 - Epics and backlog
 Write `docs/epics.md` and `factory/backlog.md` (you own `backlog.md` only during this pass).
 - `epics.md`: each epic has id (E1...), goal, requirements, "done when" checks (observable), and dependencies on other epics.
+- **Scope cap**: the backlog is the MVP slice only. At most 8 epics and about 25 backlog items, all Must. Should and Could epics go in `epics.md` under `## Later` with their requirements and done-when checks but NO backlog lines; the human adds them (by re-running PASS 3) once the MVP ships. If the MVP will not fit in the cap, stop and say so in `docs/open-questions.md` (`QUESTIONS: n`) with a recommended cut instead of exceeding it.
 - Order: respect dependencies first; within that, Must before Should before Could (from the brief), and among equals put high-impact / low-effort first (impact-effort). Won't-this-time items stay out of the backlog and are listed at the bottom of `epics.md`.
 - `backlog.md`: dependency-ordered lines `- [ ] [E1] <outcome-focused feature>`. Item 1 MUST be the scaffold job: project skeleton following `docs/architecture.md`, a passing test, the documented commands, and CI. Each item should be small enough for about 5 acceptance criteria or fewer; split anything larger. No implementation detail in the line.
 - Also write `docs/claude-md-proposal.md`: the stack, test command, lint command and conventions to put into `CLAUDE.md` Project context (non-obvious facts only). The human approves it; you do not edit `CLAUDE.md`.
