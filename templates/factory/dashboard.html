@@ -146,9 +146,11 @@ let BOARD={},JOBS=[],ITEMS=[],ENTRIES=null,MD="",PENDING=[],APPLIED=[],VERIFY={}
 const UI={sel:{},note:{},confirm:{},msg:{},cmd:{}};
 try{
   const m=location.hash.match(/t=([\w-]+)/);
-  if(m){sessionStorage.setItem("factory-token",m[1]);history.replaceState(null,"",location.pathname+location.search)}
+  if(m){sessionStorage.setItem("factory-token",m[1]);try{localStorage.setItem("factory-token",m[1])}catch(e){}history.replaceState(null,"",location.pathname+location.search)}
   TOKEN=sessionStorage.getItem("factory-token");
+  if(!TOKEN){try{TOKEN=localStorage.getItem("factory-token")}catch(e){}}
 }catch(e){}
+const dropToken=()=>{TOKEN=null;try{sessionStorage.removeItem("factory-token")}catch(e){}try{localStorage.removeItem("factory-token")}catch(e){}};
 const canQueue=()=>SERVER&&!!TOKEN;
 const jsonOf=async p=>{try{const r=await fetch(p+"?"+Date.now());return r.ok?await r.json():null}catch(e){return null}};
 const recOf=q=>(q.options||[]).find(o=>o.recommended);
@@ -211,6 +213,7 @@ function renderInbox(){
   if(!body&&!log){$("inbox").innerHTML="";return}
   const n=(ENTRIES&&ENTRIES.length)||parked.length;
   const mode=canQueue()?`Clicking queues the action; it runs when you enter <code>${CMD} apply</code>.`
+    :SERVER?`<b>Read-only: this page has no token.</b> The server is running, but this tab was opened without the <code>#t=...</code> part of the URL it printed (or the server restarted and issued a new token). Open the full URL from the server's terminal output in this tab. Until then, buttons copy the command instead.`
     :`Read-only: start <code>python3 factory/server.py</code> and open the URL it prints to queue actions from here. Buttons copy the command instead.`;
   $("inbox").innerHTML=(body?`<div class="panel alert"><h2 class="sec">Needs you (${n})</h2>${body}<div class="empty" style="margin-top:6px">${mode}</div></div>`:"")
     +(log?`<details class="panel"><summary>Recent actions (${APPLIED.length})</summary>${log}</details>`:"");
@@ -231,7 +234,8 @@ async function queue(body,key){
   try{
     const r=await fetch("api/action",{method:"POST",headers:{"Content-Type":"application/json","X-Factory-Token":TOKEN},body:JSON.stringify(body)});
     const j=await r.json().catch(()=>({}));
-    UI.msg[key]=r.status===201?"Queued.":"Not queued: "+(j.error||r.status);
+    if(r.status===403){dropToken();UI.msg[key]="Not queued: the server rejected the token (it restarted, or this URL is stale). Open the full URL it printed, including #t=..."}
+    else UI.msg[key]=r.status===201?"Queued.":"Not queued: "+(j.error||r.status);
   }catch(e){UI.msg[key]="Not queued: the server is unreachable."}
   UI.confirm[key]=false; await load(true);
 }
