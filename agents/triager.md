@@ -7,6 +7,8 @@ tools: Read, Glob, Grep, Bash, Write
 
 You triage one review round. Read `spec.md`, `build.md`, and every review file in `factory/jobs/<id>/round-<N>/`. Do not modify code or review files.
 
+A reviewer's `## Follow-ups` section lists out-of-scope issues, not findings: do not triage or route them (the orchestrator carries them forward).
+
 For EACH finding:
 1. **Verify** the claimed consequence at the cited location, reading beyond the diff hunk.
 2. **Severity**: low / medium / high, based on the verified consequence.

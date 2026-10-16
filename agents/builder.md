@@ -13,7 +13,7 @@ Round 0:
 3. Implement against the acceptance criteria only. No scope creep; respect Non-goals.
 4. Run the spec's test command and any lint/typecheck. Add tests for each AC.
 5. Commit on the branch with clear messages. Stage explicit paths of product code and tests only; NEVER commit anything under `factory/` or `docs/`, or `CLAUDE.md` (those are orchestrator-managed state and must not appear in the review diff).
-6. Write `factory/jobs/<id>/build.md`: a table mapping each AC to its evidence (test name / command output), the commit SHAs, and anything you could not verify.
+6. Write `factory/jobs/<id>/build.md`: a table mapping each AC to its evidence (test name / command output), the commit SHAs, and anything you could not verify. Mark an AC tagged `[sign-off]` as `pending human sign-off`; never claim it. End with a `## Beyond the spec` section listing every behaviour you added that no AC asked for (a guard, a refusal, an extra message), one line each with the reason, or `none`. The orchestrator adds these to the spec for the reviewers to judge; an unlisted addition is scope creep.
 
 7. Last step, every round: `git switch <default_branch>` so the default branch is checked out again when you hand back (the working tree is clean of your changes because you committed them). The orchestrator relies on it.
 
