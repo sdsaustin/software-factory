@@ -53,9 +53,37 @@ main{display:grid;grid-template-columns:repeat(7,minmax(160px,1fr));gap:12px;ove
 .chip{display:inline-block;font-size:11px;padding:1px 6px;border-radius:4px;margin:2px 2px 0 0;color:#fff;background:var(--pend)}
 .chip.PASS{background:var(--pass)}.chip.CHANGES{background:var(--chg)}
 #viewer{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);padding:16px;overflow:auto}
-#viewer .box{background:var(--card);max-width:820px;margin:0 auto;border-radius:8px;padding:16px}
+#viewer .box{background:var(--card);max-width:860px;margin:0 auto;border-radius:8px;padding:16px}
 #viewer pre{white-space:pre-wrap;word-break:break-word}
 #viewer button{margin:0 4px 8px 0;cursor:pointer}
+#viewer button.on{border-color:var(--acc);background:color-mix(in srgb,var(--acc) 14%,var(--card))}
+.vbar{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;border-top:1px solid var(--bd);padding-top:8px}
+.vbar .fname{font:12px ui-monospace,monospace;color:var(--mut)}
+/* rendered markdown */
+.md{font-size:14px;line-height:1.55;overflow-wrap:break-word}
+.md p.id{margin:.35em 0}
+.md h1,.md h2,.md h3,.md h4{line-height:1.25;margin:1.1em 0 .4em}
+.md h1{font-size:20px}.md h2{font-size:17px;border-bottom:1px solid var(--bd);padding-bottom:4px}.md h3{font-size:15px}.md h4{font-size:14px}
+.md>:first-child{margin-top:0}
+.md p{margin:.5em 0}
+.md ul,.md ol{margin:.4em 0;padding-left:1.5em}.md li{margin:.15em 0}
+.md li.task{list-style:none;margin-left:-1.2em}
+.md code{background:var(--bg);border:1px solid var(--bd);border-radius:4px;padding:0 4px}
+.md pre{background:var(--bg);border:1px solid var(--bd);border-radius:6px;padding:8px 10px;overflow-x:auto;white-space:pre;font:12px/1.45 ui-monospace,monospace}
+.md pre code{background:none;border:0;padding:0}
+.md blockquote{margin:.5em 0;padding:2px 10px;border-left:3px solid var(--bd);color:var(--mut)}
+.md hr{border:0;border-top:1px solid var(--bd);margin:1em 0}
+.md .tw{overflow-x:auto;margin:.5em 0}
+.md table{border-collapse:collapse;font-size:13px}
+.md th,.md td{border:1px solid var(--bd);padding:4px 8px;text-align:left;vertical-align:top}
+.md th{background:var(--bg)}
+.md a{color:var(--acc)}
+.verdict{display:inline-block;font-weight:600;font-size:13px;padding:2px 10px;border-radius:99px;color:#fff;background:var(--pend);margin-bottom:6px}
+.verdict.ok{background:var(--pass)}.verdict.bad{background:var(--chg)}.verdict.warn{background:var(--warn)}
+.diff{font:12px/1.45 ui-monospace,monospace;white-space:pre;overflow-x:auto;background:var(--bg);border:1px solid var(--bd);border-radius:6px;padding:8px 0}
+.diff span{display:block;padding:0 10px}
+.diff .a{background:color-mix(in srgb,var(--pass) 16%,transparent)}.diff .r{background:color-mix(in srgb,var(--chg) 16%,transparent)}
+.diff .h{color:var(--acc)}.diff .f{font-weight:600;border-top:1px solid var(--bd);margin-top:6px;padding-top:4px}
 .empty{color:var(--mut);font-size:12px}
 .entry{border-top:1px solid var(--bd);padding:10px 0}.entry:first-of-type{border-top:0}
 .eh{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.why{margin:6px 0;color:var(--mut)}
@@ -82,7 +110,7 @@ code{font:12px ui-monospace,monospace}
   <h2 class="sec">Jobs</h2>
   <main id="board"></main>
 </div>
-<div id="viewer"><div class="box"><div id="tabs"></div><pre id="content"></pre><button onclick="viewer.style.display='none'">Close</button></div></div>
+<div id="viewer"><div class="box"><div id="tabs"></div><div id="content"></div><div class="vbar"><span class="fname" id="fname"></span><span><button id="rawbtn" onclick="toggleRaw()">Show source</button><button onclick="viewer.style.display='none'">Close</button></span></div></div></div>
 <script>
 const STAGES=["spec","build","review","triage","decision","needs-human","done"];
 const REV=["security","ux","ui","code"];
@@ -206,7 +234,7 @@ function renderInbox(){
   else{
     const sections=MD.split(/^## /m).slice(1).map(s=>{const i=s.indexOf("\n");return{h:s.slice(0,i).trim(),body:s.slice(i+1).trim()}});
     body=sections.length
-      ? sections.map(s=>`<details open><summary>${esc(s.h)}</summary><pre>${esc(s.body)}</pre></details>`).join("")
+      ? sections.map(s=>`<details open><summary>${esc(s.h)}</summary><div class="md">${mdToHtml(s.body)}</div></details>`).join("")
       : parked.map(j=>`<details><summary>${esc(j.id)} ${esc(j.title||"")}</summary><pre>${esc(j.parked_reason||"See decision.md or spec.md Open decisions.")}</pre></details>`).join("");
   }
   const log=APPLIED.slice(-8).reverse().map(a=>`<div class="item"><span class="pill ${a.result==="applied"?"done":a.result==="rejected"?"blocked":"parked"}">${esc(a.result)}</span><span class="t">${esc(a.type)} ${esc(a.job||"")} <span class="dep">${esc(a.detail||"")}</span></span></div>`).join("");
@@ -302,16 +330,106 @@ function card(j){
     <b>${esc(j.id)}</b>${esc(j.title||"")}<div><span class="badge">${esc(j.track||"?")}</span> ${j.decision?`<span class="badge">${esc(j.decision)}</span>`:""}
     ${j.item?`<span class="badge">${esc(j.item)}</span>`:""}${j.assumptions?`<span class="badge warn">${esc(j.assumptions)} assumption${j.assumptions>1?"s":""}</span>`:""}</div>${j.parked_reason?`<div class="round">${esc(j.parked_reason)}</div>`:""}${rounds}</div>`;
 }
+/* Markdown for the file viewer. Agent-written text is untrusted and this page holds a token that can queue merges,
+   so nothing is passed through as HTML: every piece of text is escaped first, and only the constructs below are
+   turned back into tags. Links are kept only for http(s) and relative targets. */
+const SAFE_URL=u=>/^(https?:\/\/|\.{0,2}\/|#)/i.test(u)||!/^[a-z][a-z0-9+.-]*:/i.test(u);
+function mdInline(s){
+  const keep=[];const put=h=>"\u0000"+(keep.push(h)-1)+"\u0000";
+  s=s.replace(/(`+)([^`]|[^`][\s\S]*?[^`])\1(?!`)/g,(m,t,c)=>put(`<code>${esc(c.trim())}</code>`));
+  s=s.replace(/\[([^\]\n]+)\]\(([^()\s]+)\)/g,(m,t,u)=>SAFE_URL(u)?put(`<a href="${esc(u)}" target="_blank" rel="noopener noreferrer">${esc(t)}</a>`):m);
+  s=esc(s);
+  s=s.replace(/\*\*([^*\n]+?)\*\*/g,"<strong>$1</strong>").replace(/__([^_\n]+?)__/g,"<strong>$1</strong>");
+  s=s.replace(/(^|[^\w*])\*(?![\s*])([^*\n]+?)\*(?![\w*])/g,"$1<em>$2</em>").replace(/(^|[^\w])_(?![\s_])([^_\n]+?)_(?!\w)/g,"$1<em>$2</em>");
+  return s.replace(/\u0000(\d+)\u0000/g,(m,i)=>keep[+i]);
+}
+function mdToHtml(src){
+  const L=src.replace(/\r\n?/g,"\n").split("\n");const out=[];let i=0;
+  const isTableSep=l=>/^\s*\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)*\|?\s*$/.test(l);
+  const cells=l=>l.trim().replace(/^\|/,"").replace(/\|$/,"").split(/(?<!\\)\|/).map(c=>mdInline(c.trim().replace(/\\\|/g,"|")));
+  const LIST=/^(\s*)([-*+]|\d+[.)])\s+(.*)$/;
+  const blockStart=l=>/^\s*(#{1,6}\s|```|~~~|>|(-{3,}|\*{3,}|_{3,})\s*$)/.test(l)||LIST.test(l)||/^\s*\|/.test(l);
+  while(i<L.length){
+    const l=L[i];
+    if(!l.trim()){i++;continue}
+    let m=l.match(/^\s*(```|~~~)/);
+    if(m){const fence=m[1],buf=[];i++;while(i<L.length&&!L[i].trim().startsWith(fence))buf.push(L[i++]);i++;out.push(`<pre><code>${esc(buf.join("\n"))}</code></pre>`);continue}
+    if((m=l.match(/^\s*(#{1,6})\s+(.*?)\s*#*\s*$/))){const n=Math.min(m[1].length+1,4);out.push(`<h${n}>${mdInline(m[2])}</h${n}>`);i++;continue}
+    if(/^\s*(-{3,}|\*{3,}|_{3,})\s*$/.test(l)){out.push("<hr>");i++;continue}
+    if(/^\s*\|/.test(l)&&i+1<L.length&&isTableSep(L[i+1])){
+      const head=cells(l);i+=2;const rows=[];
+      while(i<L.length&&/^\s*\|/.test(L[i]))rows.push(cells(L[i++]));
+      out.push(`<div class="tw"><table><thead><tr>${head.map(c=>`<th>${c}</th>`).join("")}</tr></thead><tbody>${rows.map(r=>`<tr>${r.map(c=>`<td>${c}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`);continue}
+    if(/^\s*>/.test(l)){const buf=[];while(i<L.length&&/^\s*>/.test(L[i]))buf.push(L[i++].replace(/^\s*>\s?/,""));out.push(`<blockquote>${mdToHtml(buf.join("\n"))}</blockquote>`);continue}
+    if(LIST.test(l)){
+      /* nested lists by indentation; a non-marker line indented under an item continues it */
+      const stack=[];let html="";
+      const open=(ind,ord)=>{stack.push({ind,ord});html+=ord?"<ol>":"<ul>"};
+      const close=()=>{const s=stack.pop();html+="</li>"+(s.ord?"</ol>":"</ul>")};
+      while(i<L.length){
+        const x=L[i];const lm=x.match(LIST);
+        if(lm){
+          const ind=lm[1].replace(/\t/g,"    ").length,ord=/\d/.test(lm[2]);
+          while(stack.length&&ind<stack[stack.length-1].ind)close();
+          if(stack.length&&ind===stack[stack.length-1].ind&&ord!==stack[stack.length-1].ord)close();
+          if(!stack.length||ind>stack[stack.length-1].ind)open(ind,ord);else html+="</li>";
+          let body=lm[3],cls="";const t=body.match(/^\[([ xX])\]\s+(.*)$/);
+          if(t){cls=' class="task"';body=(t[1]===" "?"☐ ":"☑ ")+t[2]}
+          html+=`<li${cls}>${mdInline(body)}`;i++;
+        }else if(x.trim()&&/^\s+/.test(x)&&!blockStart(x)){html+=" "+mdInline(x.trim());i++}
+        else break;
+      }
+      while(stack.length)close();
+      out.push(html.replace(/^<\/li>/,""));continue}
+    /* Factory specs list criteria as "AC1: ...", "A2: ...", "OD1: ..." lines: give each its own paragraph with the id in bold. */
+    const ID=/^(AC|A|OD|R|N|F)\d+\b[^:\n]{0,60}:\s/;
+    if(ID.test(l.trim())){const t=l.trim(),c=t.indexOf(":");i++;
+      const more=[];while(i<L.length&&L[i].trim()&&!blockStart(L[i])&&!ID.test(L[i].trim()))more.push(L[i++].trim());
+      out.push(`<p class="id"><strong>${mdInline(t.slice(0,c+1))}</strong>${mdInline(t.slice(c+1))}${more.map(x=>" "+mdInline(x)).join("")}</p>`);continue}
+    const buf=[];
+    while(i<L.length&&L[i].trim()&&!(buf.length&&(blockStart(L[i])||ID.test(L[i].trim()))))buf.push(L[i++].trim());
+    out.push(`<p>${buf.map(mdInline).join("<br>")}</p>`);
+  }
+  return out.join("\n");
+}
+/* First line of factory files is a machine-readable verdict; show it as a coloured badge. */
+function verdictBadge(first){
+  const v=first.trim();
+  if(!/^(VERDICT:|TRIAGE:|VERIFY:|APPROVE|ESCALATE)/.test(v))return null;
+  const k=/PASS|CLEAN|^APPROVE/.test(v)?"ok":/CHANGES|FAIL|ESCALATE/.test(v)?"bad":"warn";
+  return `<span class="verdict ${k}">${esc(v)}</span>`;
+}
+function diffHtml(t){
+  return `<div class="diff">${t.split("\n").map(l=>{
+    const c=/^(diff --git|index |--- |\+\+\+ )/.test(l)?(l.startsWith("diff")?"f":"h"):l.startsWith("@@")?"h":l.startsWith("+")?"a":l.startsWith("-")?"r":"";
+    return `<span${c?` class="${c}"`:""}>${esc(l)||" "}</span>`}).join("")}</div>`;
+}
+let VIEW={id:null,f:null,text:"",raw:false};
+function renderView(){
+  const {f,text,raw}=VIEW;
+  $("fname").textContent=f||"";
+  $("rawbtn").textContent=raw?"Show formatted":"Show source";
+  $("rawbtn").style.display=text?"":"none";
+  if(!text){$("content").innerHTML=`<div class="empty">${esc(VIEW.msg||"(not written yet)")}</div>`;return}
+  if(raw){$("content").innerHTML=`<pre>${esc(text)}</pre>`;return}
+  if(/\.diff$/.test(f)){$("content").innerHTML=diffHtml(text);return}
+  const nl=text.indexOf("\n"),first=nl<0?text:text.slice(0,nl),badge=verdictBadge(first);
+  $("content").innerHTML=`<div class="md">${badge?badge+mdToHtml(nl<0?"":text.slice(nl+1)):mdToHtml(text)}</div>`;
+}
+function toggleRaw(){VIEW.raw=!VIEW.raw;renderView()}
 async function openJob(id){
   const b=await (await fetch("board.json?"+Date.now())).json();
   const j=b.jobs.find(x=>x.id===id);
-  $("tabs").innerHTML=FILES(j).map(f=>`<button onclick='showFile(${JSON.stringify(id)},${JSON.stringify(f)})'>${esc(f)}</button>`).join("");
+  $("tabs").innerHTML=FILES(j).map(f=>`<button data-f="${esc(f)}" onclick='showFile(${JSON.stringify(id)},${JSON.stringify(f)})'>${esc(f)}</button>`).join("");
   $("viewer").style.display="block";
   showFile(id,"spec.md");
 }
 async function showFile(id,f){
-  try{const r=await fetch(`jobs/${id}/${f}?`+Date.now());$("content").textContent=r.ok?await r.text():"(not written yet)"}
-  catch(e){$("content").textContent="(unavailable)"}
+  document.querySelectorAll("#tabs button").forEach(b=>b.classList.toggle("on",b.dataset.f===f));
+  VIEW={id,f,text:"",raw:VIEW.raw,msg:""};
+  try{const r=await fetch(`jobs/${id}/${f}?`+Date.now());if(r.ok)VIEW.text=await r.text();else VIEW.msg="(not written yet)"}
+  catch(e){VIEW.msg="(unavailable)"}
+  renderView();
 }
 load();setInterval(()=>load(false),3000);
 </script>
