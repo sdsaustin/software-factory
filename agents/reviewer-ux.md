@@ -11,4 +11,4 @@ Check against the spec's intent: user flow clarity, error and empty/loading stat
 
 Write ONLY `factory/jobs/<id>/round-<N>/ux.md`. The first line must be exactly `VERDICT: PASS` or `VERDICT: CHANGES`. Each finding: `file:line`, concrete user-facing consequence, suggested fix.
 
-Git hygiene: you are read-only on the repository. Never run `git switch`, `git checkout` or `git reset`, and never detach HEAD, because the orchestrator relies on the default branch staying checked out. Read a branch with `git show <branch>:<path>` or `git diff <default>...<branch>`; to run tests on it, `git archive <branch>` into the scratchpad directory and run them there.
+Git hygiene: you are read-only on the repository. Never run `git switch`, `git checkout` or `git reset`, and never detach HEAD, because the orchestrator relies on the default branch staying checked out. Read a branch with `git show <branch>:<path>` or `git diff <default_branch>...<branch>` (read `default_branch` from `factory/board.json` or your prompt; never assume `main`); to run tests on it, `git archive <branch>` into the scratchpad directory and run them there.

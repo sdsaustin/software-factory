@@ -605,6 +605,7 @@ claude -p "/software-factory:brainstorm …" --plugin-dir $PL                   
 <tr><td>1.4.2</td><td>Verification from a <code>git archive</code> instead of <code>git switch</code> (a failed switch had produced a false <code>VERIFY: FAIL</code>); <code>approve</code> handles jobs that never reached the approver.</td></tr>
 <tr><td>1.5.0</td><td>Act from the dashboard: <code>inbox.json</code> with recommended options, <code>server.py</code> action queue, <code>/factory apply</code>; both guides and this document updated.</td></tr>
 <tr><td>1.5.1</td><td>Sandbox test of dashboard actions: <code>approve</code> on a job that never reached a build (parked at the readiness gate) is refused by both the server and <code>apply</code>; such jobs are answered with <code>rework</code>.</td></tr>
+<tr><td>1.5.2</td><td>Sandbox end-to-end test: the state commit no longer aborts when <code>docs/</code> does not exist; agents are told the project root and default branch by name, a reviewer that did not write its file is re-run instead of trusted, and the builder returns to the default branch before handing back.</td></tr>
 </table>
 
 <h2 id="glossary">17. Glossary</h2>
