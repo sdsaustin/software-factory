@@ -139,8 +139,9 @@ th{background:var(--code)}
   <li>Add only facts an agent cannot learn from the code: policy, frozen paths, non-default conventions. Skip directory trees and tech-stack lists.</li>
   <li>Make sure you have no uncommitted code changes and your default branch is checked out (<code>init</code> warns if not).</li>
   <li>Optional: start the dashboard.
-<pre><code>cd factory && python3 -m http.server 8000
-# open http://localhost:8000/dashboard.html</code></pre></li>
+<pre><code>python3 factory/server.py
+# open the exact URL it prints (it ends in #t=..., a token that lets the page queue actions)</code></pre>
+    For view-only you can still use <code>cd factory &amp;&amp; python3 -m http.server 8000</code>.</li>
 </ol>
 
 <h2 id="loop">The loop</h2>
@@ -186,6 +187,7 @@ th{background:var(--code)}
   <tr><td><code>/factory &lt;feature&gt;</code></td><td>Run a new job through the whole loop</td></tr>
   <tr><td><code>/factory plan &lt;vision&gt;</code></td><td>Plan a whole product from a vision: brief, architecture decisions, epics, ordered backlog. Run it with no argument to resume.</td></tr>
   <tr><td><code>/factory run [--max-jobs N] [--until E2] [--budget minutes]</code></td><td>Autonomous outer loop: runs every ready backlog item, parks any job that needs a human (questions go to <code>factory/inbox.md</code>, shown in the dashboard), keeps working on independent items, and stops on a circuit breaker. <code>/factory run resume</code> continues after you answer the inbox.</td></tr>
+  <tr><td><code>/factory apply</code></td><td>Carry out the approve / rework / resume actions you queued by clicking on the dashboard</td></tr>
   <tr><td><code>/factory next</code></td><td>Run the first unchecked item in <code>factory/backlog.md</code></td></tr>
   <tr><td><code>/factory status</code></td><td>Print the board: each job's stage, track and verdicts</td></tr>
   <tr><td><code>/factory approve &lt;id&gt;</code></td><td>Merge a <code>needs-human</code> job after you have read its <code>decision.md</code></td></tr>
@@ -234,7 +236,10 @@ docs/                              vision, brief, architecture, decisions, epics
 factory/
   board.json                       job state (orchestrator writes it)
   backlog.md                       queue for /factory next and /factory run (B-ids, [E] epics, depends:)
-  inbox.md                         parked jobs waiting for you (written by /factory run)
+  inbox.md  inbox.json             parked jobs waiting for you (written by /factory run); inbox.json drives the dashboard buttons
+  server.py                        local dashboard server; queues your clicks into actions.jsonl
+  actions.jsonl                    clicks from the dashboard (written only by server.py)
+  actions-applied.json             what /factory apply did with them (written only by the orchestrator)
   learnings.md                     lessons from retros, read by all agents
   dashboard.html                   the live board
   userguide.html                   this page
@@ -264,13 +269,18 @@ factory/
 </table>
 
 <h2 id="dashboard">The dashboard</h2>
-<p>Run the server shown in Setup and open <code>dashboard.html</code>. It refreshes every 3 seconds.</p>
+<p>Run the server shown in Setup and open the URL it prints. It refreshes every 3 seconds.</p>
 <ul>
   <li>Columns follow the stages: spec, build, review, triage, decision, needs-human, done.</li>
   <li>Each card shows the track and one chip per reviewer per round: <span class="pass">PASS</span>, <span class="chg">CHANGES</span> or grey while pending.</li>
   <li><code>needs-human</code> cards are outlined in amber. Those are the ones waiting on you.</li>
   <li>Click a card to read its spec, build notes, reviews, triage and decision.</li>
+  <li>Above the board: the run banner (state, counts, why a run stopped, Resume), the backlog queue (done, active, ready, waiting, parked, blocked) and epic progress.</li>
 </ul>
+<h3>Acting from the dashboard</h3>
+<p>Parked jobs appear under <b>Needs you</b> with their question and options; the recommended option is highlighted. Pick options (or <b>Use recommendations</b>), add a note if you want, and submit. Approve asks to confirm. The click is <b>queued</b> only. Then run:</p>
+<pre><code>&gt; /software-factory:factory apply</code></pre>
+<p>Apply re-validates each action against the current board, re-runs the tests before any merge, and carries out <b>approve</b>, <b>rework</b> or <b>resume</b>. Results appear under <b>Recent actions</b>. Without the token (or with <code>http.server</code>) the buttons copy the equivalent command instead. The server listens on 127.0.0.1 only and can queue just those three actions for jobs that are waiting on you.</p>
 
 <h2 id="human">Your role</h2>
 <ul>
@@ -293,7 +303,9 @@ factory/
   <tr><th>Symptom</th><th>Likely cause and fix</th></tr>
   <tr><td>Job stops at <code>needs-human</code> immediately</td><td>Test command missing in <code>CLAUDE.md</code>, or the spec has open decisions. Check <code>spec.md</code>.</td></tr>
   <tr><td>"Working tree must be clean"</td><td>Commit or stash your changes, then rerun.</td></tr>
-  <tr><td>Dashboard says it cannot load board.json</td><td>Serve it: run <code>python3 -m http.server</code> inside <code>factory/</code>; opening the file directly will not work.</td></tr>
+  <tr><td>Dashboard says it cannot load board.json</td><td>Serve it: run <code>python3 factory/server.py</code> and open the URL it prints; opening the file directly will not work.</td></tr>
+  <tr><td>Dashboard buttons say “Copy command”</td><td>Open the exact URL <code>server.py</code> printed, including <code>#t=...</code>. A restarted server prints a new token.</td></tr>
+  <tr><td>“Queued” but nothing happened</td><td>Queued is not applied: run <code>/factory apply</code> in your Claude session.</td></tr>
   <tr><td>A review file is missing</td><td>The round is incomplete by design. The orchestrator waits, and re-runs an agent once if its file is malformed.</td></tr>
   <tr><td>Merge fails</td><td>Another job changed the same files. Run <code>/factory rework &lt;id&gt; rebase on the default branch and resolve conflicts</code>.</td></tr>
 </table>

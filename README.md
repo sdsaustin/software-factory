@@ -22,9 +22,10 @@ In any project:
 /software-factory:grill [topic]                         # stress-test any idea, plan or spec (bundled, no other plugin needed)
 /software-factory:factory next | status | retro
 /software-factory:factory run [--max-jobs N]             # drain the backlog autonomously; parks jobs that need a human, batches the questions in factory/inbox.md
+/software-factory:factory apply                             # carry out the approve / rework / resume actions you clicked on the dashboard (python3 factory/server.py)
 /software-factory:factory approve <id> | rework <id> <note>
 ```
-`init` creates `factory/` (board, backlog, learnings, dashboard, `userguide.html`) and appends a project-context block to `CLAUDE.md`. It never overwrites existing files and is safe to re-run.
+`init` creates `factory/` (board, backlog, learnings, dashboard, `server.py`, `userguide.html`) and appends a project-context block to `CLAUDE.md`. It never overwrites existing files and is safe to re-run. Projects initialized before 1.5.0 keep their old `dashboard.html`; copy `templates/factory/dashboard.html` and `server.py` into `factory/` by hand to get the action buttons.
 
 ## What ships
 | Path | Purpose |

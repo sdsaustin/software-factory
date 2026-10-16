@@ -69,6 +69,8 @@ svg .h{font-weight:600;font-size:12.5px}
   <a class="sub" href="#f-doc">document</a>
   <a class="sub" href="#f-other">approve / rework / retro</a>
   <a class="sub" href="#f-grill">grill and brainstorm</a>
+  <a class="sub" href="#f-run">run (autonomous)</a>
+  <a class="sub" href="#f-apply">apply and dashboard actions</a>
   <a href="#git">9 Git and state policy</a>
   <a href="#invariants">10 Invariants</a>
   <a href="#config">11 Tunables</a>
@@ -124,7 +126,7 @@ svg .h{font-weight:600;font-size:12.5px}
 │  └─ triager.md  approver.md  retro.md
 ├─ templates/              copied into user projects by init
 │  ├─ project-context.md   block appended to CLAUDE.md (marker: software-factory:project-context)
-│  └─ factory/             board.json  backlog.md  learnings.md  dashboard.html  userguide.html
+│  └─ factory/             board.json  backlog.md  learnings.md  dashboard.html  server.py  userguide.html
 ├─ docs/
 │  ├─ factoryarchitecture.html   this document
 │  └─ userguide.html             how to use the factory (scenarios)
@@ -192,7 +194,7 @@ svg .h{font-weight:600;font-size:12.5px}
   <path class="line" d="M940 420 V450"/><polygon points="936,450 940,458 944,450" style="fill:var(--mut)"/>
   <path class="line dash" d="M200 470 V 266" /><polygon points="196,272 200,264 204,272" style="fill:var(--mut)"/><text class="t2" x="208" y="420">init copies templates</text>
 </svg>
-<figcaption>The orchestrator (main session) spawns subagents; subagents exchange information only through project files and git. The dashboard only reads <code>board.json</code> and job files.</figcaption>
+<figcaption>The orchestrator (main session) spawns subagents; subagents exchange information only through project files and git. The dashboard reads <code>board.json</code>, the inbox and job files; the only thing it can write, through <code>server.py</code>, is a queued human action in <code>actions.jsonl</code> (§8.8).</figcaption>
 </figure>
 
 <h2 id="components">6. Components</h2>
@@ -223,9 +225,10 @@ svg .h{font-weight:600;font-size:12.5px}
 <table>
 <tr><th>Template</th><th>Becomes</th><th>Notes</th></tr>
 <tr><td><code>templates/factory/board.json</code></td><td><code>factory/board.json</code></td><td><code>{"version":1,"default_branch":null,"jobs":[]}</code>; <code>init</code> fills <code>default_branch</code>.</td></tr>
-<tr><td><code>templates/factory/backlog.md</code></td><td><code>factory/backlog.md</code></td><td>Queue; lines <code>- [ ] [E1] text</code>.</td></tr>
+<tr><td><code>templates/factory/backlog.md</code></td><td><code>factory/backlog.md</code></td><td>Queue; lines <code>- [ ] B1 [E1] text (depends: B0)</code>. <code>B&lt;n&gt;</code> ids and <code>depends:</code> are written by the planner; <code>/factory next</code> and <code>run</code> pick the first <b>ready</b> item.</td></tr>
 <tr><td><code>templates/factory/learnings.md</code></td><td><code>factory/learnings.md</code></td><td>Append-only lessons; read by all agents.</td></tr>
-<tr><td><code>templates/factory/dashboard.html</code></td><td><code>factory/dashboard.html</code></td><td>Self-contained board. Columns = stages; chips from <code>reviews</code>; click-through to job files; polls every 3 s. Does <b>not</b> show <code>plan</code>/<code>document</code> state.</td></tr>
+<tr><td><code>templates/factory/dashboard.html</code></td><td><code>factory/dashboard.html</code></td><td>Self-contained board. Columns = stages; chips from <code>reviews</code>; click-through to job files; polls every 3 s. Also renders the run banner, the <b>Needs you</b> inbox with clickable options, the backlog queue (ready/blocked/parked) and epic progress, and queues human actions through <code>server.py</code> (falls back to copy-the-command when the server or token is missing). Does <b>not</b> show <code>plan</code>/<code>document</code> state.</td></tr>
+<tr><td><code>templates/factory/server.py</code></td><td><code>factory/server.py</code></td><td>Stdlib-only local server (127.0.0.1). Serves <code>factory/</code> and accepts one write, <code>POST /api/action</code>, which appends a validated action to <code>actions.jsonl</code>. Never touches <code>board.json</code>. See §8.8.</td></tr>
 <tr><td><code>templates/factory/userguide.html</code></td><td><code>factory/userguide.html</code></td><td>End-user guide with workflows A (idea) and B (existing code).</td></tr>
 <tr><td><code>templates/project-context.md</code></td><td>appended to <code>CLAUDE.md</code></td><td>Contains marker <code>software-factory:project-context</code>; sections Policy · Running the project · Non-default conventions · Observed pitfalls · Software factory.</td></tr>
 </table>
@@ -246,8 +249,11 @@ docs/                              created by plan / document / grill / brainsto
   claude-md-proposal.md            PASS 3 / PASS DOC          (planner)
   plan-notes.md                    human feedback, dated      (orchestrator)
 factory/
-  board.json  backlog.md  learnings.md  dashboard.html  userguide.html
+  board.json  backlog.md  learnings.md  dashboard.html  server.py  userguide.html
   retro-proposal.md
+  inbox.md  inbox.json             parked jobs awaiting a human            (orchestrator, during run)
+  actions.jsonl                    clicks queued from the dashboard        (server.py only, append-only)
+  actions-applied.json             result of each applied action           (orchestrator only)
   jobs/&lt;id&gt;/                       id = NNN-short-slug
     spec.md  build.md  decision.md
     verify.md  branch.diff         orchestrator evidence for the approver (tests + diff)
@@ -262,7 +268,9 @@ factory/
 <tr><td><code>factory/backlog.md</code></td><td>human; orchestrator ticks items; planner PASS 3 writes it</td><td>—</td></tr>
 <tr><td><code>factory/learnings.md</code></td><td>orchestrator (appends from retro)</td><td>—</td></tr>
 <tr><td><code>CLAUDE.md</code></td><td>human; orchestrator applies approved proposals / <code>init</code> appends block</td><td>agents never</td></tr>
-<tr><td><code>verify.md</code> <code>branch.diff</code></td><td>orchestrator (it runs the tests on the job branch and saves the diff)</td><td>approver reads only</td></tr>
+<tr><td><code>inbox.md</code> <code>inbox.json</code> <code>actions-applied.json</code></td><td>orchestrator</td><td>dashboard reads only</td></tr>
+<tr><td><code>actions.jsonl</code></td><td><code>server.py</code> (append-only)</td><td>orchestrator reads only; nothing rewrites it</td></tr>
+<tr><td><code>verify.md</code> <code>branch.diff</code></td><td>orchestrator (it exports the job branch with <code>git archive</code>, runs the tests there and saves the diff; it never switches branches to verify)</td><td>approver reads only</td></tr>
 <tr><td><code>spec.md</code> <code>build.md</code> <code>decision.md</code> <code>round-N/*</code></td><td>the one agent named for it</td><td>orchestrator appends human rework note to <code>build.md</code></td></tr>
 <tr><td>product code and tests</td><td>builder, on <code>factory/&lt;id&gt;</code> only</td><td>no one else</td></tr>
 <tr><td>default branch</td><td>orchestrator (merge, state commit)</td><td>agents never</td></tr>
@@ -281,6 +289,8 @@ factory/
   "default_branch": "main|master|…",          // set by init or orchestrator preflight
   "plan":     {"pass": 1|2|3, "status": "running|awaiting-questions|awaiting-approval|approved|done"},  // optional
   "document": "running|awaiting-approval|done",                                                          // optional
+  "run": {"status":"running|stopped|done","started":"…","max_jobs":null,"budget_minutes":null,
+          "jobs_done":0,"consecutive_failures":0,"stop_reason":null,"current":"&lt;id&gt;|null"},        // null until /factory run
   "jobs": [{
     "id": "001-health-endpoint", "title": "…",
     "track": "quick|full",
@@ -291,10 +301,13 @@ factory/
     "decision": "APPROVE|ESCALATE|null",
     "branch": "factory/001-health-endpoint",
     "epic": "E1",                              // optional, from backlog tag
+    "item": "B3",                              // backlog id; set when the job starts from the backlog
+    "parked_reason": "string|null",            // set while parked for a human in a run
+    "assumptions": 0,                          // count of A&lt;n&gt; lines in the spec
     "updated": "ISO-8601"
   }]
 }</code></pre>
-<p>Written as a whole-file read-modify-write at every transition. The dashboard relies on <code>stage</code>, <code>track</code>, <code>decision</code>, <code>reviews</code>, <code>id</code>, <code>title</code>; additional fields are ignored.</p>
+<p>Written as a whole-file read-modify-write at every transition. The dashboard relies on <code>stage</code>, <code>track</code>, <code>decision</code>, <code>reviews</code>, <code>id</code>, <code>title</code>; additional fields are ignored. The run banner and backlog queue additionally use <code>run</code>, <code>item</code>, <code>parked_reason</code> and <code>assumptions</code>.</p>
 <h3 id="context">7.5 What each agent reads first</h3>
 <table>
 <tr><th>Agent</th><th>CLAUDE.md</th><th>learnings.md</th><th>docs/*</th><th>job files</th><th>other</th></tr>
@@ -307,6 +320,23 @@ factory/
 <tr><td>retro</td><td>✔</td><td>✔</td><td>—</td><td>spec, build, rounds, decision of finished jobs</td><td>—</td></tr>
 </table>
 <p>The project-context block in <code>CLAUDE.md</code> also tells every agent to read <code>docs/vision.md</code>, <code>architecture.md</code>, <code>decisions.md</code>, <code>epics.md</code> when they exist, so this is partly enforced by the prompt text you are reading from <code>CLAUDE.md</code> rather than each agent file.</p>
+
+<h3 id="actionfiles">7.6 inbox.json and the action queue</h3>
+<pre><code>// factory/inbox.json  (orchestrator rewrites the whole file)
+{"entries":[{"job":"003-report","reason":"DECISION|ESCALATE|VERIFY FAIL|NO TEST COMMAND|NEEDS PR|AGENT FAILURE",
+  "blocks":["B6"],"why":"1-3 sentences",
+  "questions":[{"id":1,"text":"…","options":[
+     {"key":"a","label":"…","recommended":true,"then":"approve"},
+     {"key":"b","label":"…","then":"rework"}]}],
+  "actions":[{"type":"approve|rework","label":"…","recommended":false}]}]}
+
+// factory/actions.jsonl  (server.py appends one JSON object per line; never rewritten)
+{"id":"hex","at":"ISO-8601 UTC","type":"approve|rework|resume","job":"003-report|null",
+ "answers":{"1":"a"},"note":"human text, control chars stripped, ≤ 4000 chars"}
+
+// factory/actions-applied.json  (orchestrator rewrites the whole file)
+{"applied":[{"id":"hex","job":"…","type":"…","result":"applied|rejected|stale","detail":"…","at":"…"}]}</code></pre>
+<p>Pending = ids present in <code>actions.jsonl</code> and absent from <code>actions-applied.json</code>. Each file has exactly one writer, so no locking between the server and the orchestrator is needed. <code>then</code> says what a picked option does; if several answers disagree, <code>rework</code> wins.</p>
 
 <h2 id="flows">8. Flows</h2>
 <h3 id="f-init">8.1 init</h3>
@@ -373,7 +403,7 @@ factory/
 
 <h3 id="f-other">8.5 approve, rework, retro, status</h3>
 <ul>
-<li><b>approve &lt;id&gt;</b>: only for <code>needs-human</code>; show <code>decision.md</code>; merge; <code>done</code>; commit factory state.</li>
+<li><b>approve &lt;id&gt;</b>: only for <code>needs-human</code>; show <code>decision.md</code> (or, if the job never reached the approver, the inbox entry and the human's answers, and write an <code>APPROVE (human)</code> decision); re-verify from a <code>git archive</code>; merge; <code>done</code>; commit factory state.</li>
 <li><b>rework &lt;id&gt; &lt;note&gt;</b>: append the note under <code>## Human rework</code> in <code>build.md</code> and under <code>## Human amendments</code> in <code>spec.md</code> (so the spec is not stale); resume <code>builder-&lt;id&gt;</code> (spawn a fresh one with the same name if gone); new review round. Grants two more rounds (cap is per rework, not global).</li>
 <li><b>retro</b> (manual, also offered every 5 done jobs and at epic close): <code>retro</code> agent writes <code>factory/retro-proposal.md</code>; orchestrator appends learnings to <code>learnings.md</code>; <code>CLAUDE.md</code> pitfalls applied only if the human approves. At epic close the orchestrator also reports which of the epic's "done when" checks hold (does not edit <code>epics.md</code>).</li>
 <li><b>status</b>: prints board.</li>
@@ -388,6 +418,46 @@ factory/
 <tr><td>Wrap-up</td><td>mirror → connect (contradictions) → intent doc → <code>status: complete</code></td><td>mirror → connect → MoSCoW → <code>docs/intent.md</code></td></tr>
 <tr><td>Headless</td><td>assumes <code>[recommend]</code> answers, records <code>OPEN</code> for the rest; <code>partial</code> if any OPEN</td><td>generates ideas itself, all marked assumed</td></tr>
 <tr><td>Facts</td><td>looked up by sub-agent, never asked of the human</td><td>—</td></tr>
+</table>
+
+<h3 id="f-run">8.7 run (<code>/factory run</code>): the outer loop</h3>
+<pre><code>/factory run [--max-jobs N] [--until E2|B5] [--budget min]
+  start / resume:  apply pending dashboard actions first, then write board.run
+  repeat:
+    pick   first READY backlog item  (unchecked, every depends: item done, not parked)
+    run    the inner job loop (§8.2) in a fresh sub-orchestrator, HEADLESS:
+             spec-writer decides safe defaults itself (Assumptions A1..);
+             wherever the loop says needs-human it PARKS instead:
+             stage needs-human + parked_reason + entry in inbox.md and inbox.json
+    record DONE   -> tick backlog line, jobs_done++, consecutive_failures = 0
+           PARKED -> consecutive_failures++, keep going with independent items
+    check  default branch passes its tests after every merge
+  stop when: nothing READY | --max-jobs/--budget/--until | 2 parked in a row | default branch red
+  final report: done, parked (+ what they block), spec amendments, assumptions, stop reason</code></pre>
+<p>Autonomy changes only <i>whether the loop waits</i>. Reviews, triage, <code>verify.md</code> and the approver apply exactly as in a manual job, a run never pushes or merges into a protected branch, and epic retros run automatically at epic close with their <code>CLAUDE.md</code> proposals queued in the inbox for approval. Dependencies are explicit: a parked job blocks only the items that list it in <code>depends:</code>.</p>
+<h3 id="f-apply">8.8 apply and dashboard actions (<code>/factory apply</code>)</h3>
+<pre><code>browser (dashboard.html)            server.py                      orchestrator (/factory apply)
+ shows inbox.json options  ──────▶   GET  files (read only)
+ human picks, confirms     ──POST──▶ validate: Host, Origin, token,
+                                     JSON, type, job is needs-human
+                                     append line to actions.jsonl
+ shows "Queued"            ◀──201──
+                                                          human types /factory apply
+                                                          read actions.jsonl − actions-applied.json
+                                                          re-validate against CURRENT board + inbox.json
+                                                          approve: answers → spec amendments, re-verify
+                                                                   from git archive, merge, done
+                                                          rework : answers.md, back to builder/spec-writer
+                                                          resume : /factory run resume (last)
+                                                          write board, inbox*, actions-applied.json, commit</code></pre>
+<p>The queue exists because the orchestrator is a model session, not a daemon: it cannot be pushed to, so the human clicks (recorded durably) and then asks it to apply. Running <code>apply</code> is the confirmation; the orchestrator never reads a queued note as an instruction, only as the human's recorded decision.</p>
+<table>
+<tr><th>Threat</th><th>Control</th></tr>
+<tr><td>A web page you visit posts "approve" to localhost</td><td>Per-run random token (printed after <code>#</code>, so never sent to a server or logged), required in <code>X-Factory-Token</code>; <code>Origin</code> must match the server; body must be <code>application/json</code>; no CORS headers are ever sent</td></tr>
+<tr><td>DNS rebinding reads <code>board.json</code> or the token</td><td>Binds 127.0.0.1 only; any request whose <code>Host</code> is not <code>127.0.0.1:port</code>, <code>localhost:port</code> or <code>[::1]:port</code> gets 403</td></tr>
+<tr><td>A forged or stale action</td><td>The server only accepts jobs currently <code>needs-human</code> and three action types; the orchestrator validates again at apply time and marks stale or malformed ones <code>stale</code>/<code>rejected</code></td></tr>
+<tr><td>Oversized or hostile input</td><td>Body ≤ 16 KB, note ≤ 4000 chars with control characters stripped, answer keys/values constrained to small ids</td></tr>
+<tr><td>Approving something that no longer passes</td><td>Apply re-runs the tests from a <code>git archive</code> of the branch before any merge; failure leaves the job in <code>needs-human</code></td></tr>
 </table>
 
 <h2 id="git">9. Git and state policy</h2>
@@ -412,6 +482,10 @@ factory/
 <li><code>init</code> never overwrites and never renames branches.</li>
 <li>Inferred decisions are never presented as accepted; assumed grill answers are never presented as user answers.</li>
 <li>Paths in prompts are project-relative; only <code>init</code> touches plugin files.</li>
+<li>Every state file has one writer: <code>actions.jsonl</code> only <code>server.py</code>; <code>board.json</code>, <code>inbox.*</code> and <code>actions-applied.json</code> only the orchestrator. The server and dashboard never write orchestrator files.</li>
+<li>The default branch stays checked out. Verification uses <code>git archive</code>, never <code>git switch</code>; reviewers, triager and approver are read-only on git; the orchestrator re-checks the branch after every agent run.</li>
+<li>Queued dashboard text is data, not instruction: apply records it, never executes or obeys it.</li>
+<li>Autonomy never lowers a bar: <code>run</code> changes only whether the loop waits for a human.</li>
 </ol>
 
 <h2 id="config">11. Tunables</h2>
@@ -428,6 +502,8 @@ factory/
 <tr><td>MVP scope cap</td><td><code>planner.md</code> PASS 1 and PASS 3, orchestrator Pass 3 gate</td><td>≤7 Must capabilities; ≤8 epics and ~25 backlog items, Must only; Should/Could live under <code>## Later</code> in <code>epics.md</code></td></tr>
 <tr><td>Backlog item size</td><td><code>planner.md</code> PASS 3</td><td>≤ ~5 acceptance criteria</td></tr>
 <tr><td>Dashboard poll</td><td><code>dashboard.html</code></td><td>3000 ms</td></tr>
+<tr><td>Run stop: consecutive parked jobs</td><td>orchestrator Run command</td><td>2</td></tr>
+<tr><td>Dashboard server port, body, note limits</td><td><code>server.py</code></td><td>8000 (tries up to 8020); body ≤ 16 KB; note ≤ 4000 chars; ≤ 10 answers; action types approve / rework / resume</td></tr>
 <tr><td>Plugin version</td><td><code>.claude-plugin/plugin.json</code></td><td>bump on every behavior change</td></tr>
 </table>
 
@@ -496,6 +572,10 @@ claude -p "/software-factory:brainstorm …" --plugin-dir $PL                   
 <tr><td>L9</td><td>Planner PASS DOC depends on being allowed to run read-only/test commands; in restricted sessions it reports "not verified".</td><td>Test command may be unverified in <code>architecture.md</code>.</td><td>Orchestrator re-verifies the test command in preflight (already required for jobs).</td></tr>
 <tr><td>L10</td><td>Plan/document can be resumed from <code>board.json</code>, but partially written <code>docs/</code> files rely on the planner to merge rather than clobber.</td><td>Possible overwrite of human edits.</td><td>Commit docs after each approved pass (offered at finish; recommended after each pass).</td></tr>
 <tr><td>L12 <span class="pill">resolved in 1.3.2</span></td><td>Approver ESCALATEd solely because its shell was denied (it could not run the tests or <code>git diff</code>). Seen in the headless e2e run, where subagents did not inherit the Bash allow-list; interactive sessions would prompt instead.</td><td>Spurious <code>needs-human</code> in restricted environments; no defect in the change.</td><td>Done: the orchestrator now runs the tests on the job branch and writes <code>verify.md</code> and <code>branch.diff</code> before spawning the approver; the approver verifies from that evidence.</td></tr>
+<tr><td>L13</td><td>Dashboard clicks only <b>queue</b> actions; nothing happens until the human runs <code>/factory apply</code> (the orchestrator is not a daemon).</td><td>An extra step; a forgotten queue sits unapplied (the dashboard shows "N queued actions").</td><td>A watcher (e.g. Monitor on <code>actions.jsonl</code>) in a running session; deliberately not a server that spawns <code>claude -p</code>.</td></tr>
+<tr><td>L14</td><td>The action server relies on a per-run token, Host/Origin checks and localhost binding; there is no user authentication or HTTPS.</td><td>Another local user or process on the same machine that can read the printed URL could queue actions (still validated again at apply).</td><td>Unix-socket mode, or a token file with 0600 permissions.</td></tr>
+<tr><td>L15</td><td><code>/factory run</code> job isolation (a fresh sub-orchestrator per job), <code>run resume</code> after a crash, the two-in-a-row stop and the epic retro were not exercised in the sandbox test; the inner loop, parking, dependency skipping and approve-after-answer were.</td><td>Unverified paths.</td><td>Run <code>run</code> in a scratch repo with <code>--max-jobs</code> small; kill it mid-job and resume.</td></tr>
+<tr><td>L16</td><td>Spec refinements proposed by a builder in a patch round are appended to the spec by the orchestrator without human approval (flagged in the final report).</td><td>The spec can drift from what the human intended.</td><td>Require approval for any AC deviation.</td></tr>
 <tr><td>L11</td><td>Grill/brainstorm fact-finding uses sub-agents only when run in the main session (as by the orchestrator). Run inside a subagent they cannot spawn more.</td><td>Facts may be asked of the human.</td><td>Keep them orchestrator-invoked.</td></tr>
 </table>
 
@@ -520,6 +600,10 @@ claude -p "/software-factory:brainstorm …" --plugin-dir $PL                   
 <tr><td>1.3.4</td><td>Plan re-test confirmed the scope caps (7 Musts, 8 epics, 26 items). Fixes from it: plan proposals must not write anticipated pitfalls into <code>CLAUDE.md</code>; backlog lines trace to a Must capability or are marked <code>(enabler)</code>.</td></tr>
 <tr><td>1.3.5</td><td>Rework also appends a dated <code>Human amendments</code> section to <code>spec.md</code> so reviewers judge against the amended intent; orchestrator re-checks out the default branch after every builder run.</td></tr>
 <tr><td>1.3.6</td><td>Spec-writer: open decisions only for product or policy choices with no safe default; otherwise decide under Assumptions. Security hardening of untrusted input becomes an acceptance criterion.</td></tr>
+<tr><td>1.4.0</td><td><code>/factory run</code>: autonomous outer loop with dependencies (<code>B&lt;n&gt;</code>, <code>depends:</code>), headless spec mode, parking into <code>inbox.md</code>, stop conditions, final report; dashboard shows run state, inbox, backlog queue, epics.</td></tr>
+<tr><td>1.4.1</td><td>Sandbox findings: default branch re-checked after every agent run, reviewers/triager/approver read-only on git; patch-round AC refinements recorded in the spec; backlog lines ticked only on merge.</td></tr>
+<tr><td>1.4.2</td><td>Verification from a <code>git archive</code> instead of <code>git switch</code> (a failed switch had produced a false <code>VERIFY: FAIL</code>); <code>approve</code> handles jobs that never reached the approver.</td></tr>
+<tr><td>1.5.0</td><td>Act from the dashboard: <code>inbox.json</code> with recommended options, <code>server.py</code> action queue, <code>/factory apply</code>; both guides and this document updated.</td></tr>
 </table>
 
 <h2 id="glossary">17. Glossary</h2>
@@ -527,6 +611,9 @@ claude -p "/software-factory:brainstorm …" --plugin-dir $PL                   
 <tr><th>Term</th><th>Meaning</th></tr>
 <tr><td>Orchestrator</td><td>The <code>factory</code> skill running in the main session.</td></tr>
 <tr><td>Job</td><td>One feature moving through the loop; id <code>NNN-slug</code>; folder <code>factory/jobs/&lt;id&gt;/</code>.</td></tr>
+<tr><td>Parked</td><td>A job in <code>needs-human</code> during a run: the run moves on to independent items while the question waits in the inbox.</td></tr>
+<tr><td>Inbox</td><td><code>factory/inbox.md</code> and <code>inbox.json</code>: parked jobs with their questions and options.</td></tr>
+<tr><td>Action (queued / applied)</td><td>A human decision clicked on the dashboard and recorded in <code>actions.jsonl</code>; carried out by <code>/factory apply</code>.</td></tr>
 <tr><td>Track</td><td><code>quick</code> or <code>full</code>; decides the reviewer set.</td></tr>
 <tr><td>Round</td><td>One parallel review + triage cycle; <code>round-N/</code>.</td></tr>
 <tr><td>AC</td><td>Acceptance criterion; numbered in the spec; each needs evidence in <code>build.md</code>.</td></tr>

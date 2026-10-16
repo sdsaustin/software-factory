@@ -57,6 +57,17 @@ main{display:grid;grid-template-columns:repeat(7,minmax(160px,1fr));gap:12px;ove
 #viewer pre{white-space:pre-wrap;word-break:break-word}
 #viewer button{margin:0 4px 8px 0;cursor:pointer}
 .empty{color:var(--mut);font-size:12px}
+.entry{border-top:1px solid var(--bd);padding:10px 0}.entry:first-of-type{border-top:0}
+.eh{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.why{margin:6px 0;color:var(--mut)}
+.q{margin:8px 0}.qt{font-weight:600;margin-bottom:4px}.opts{display:flex;gap:6px;flex-wrap:wrap}
+button{font:inherit;cursor:pointer;color:var(--fg);background:var(--card);border:1px solid var(--bd);border-radius:6px;padding:6px 10px;min-height:32px}
+button:disabled{opacity:.5;cursor:not-allowed}
+button.prim{background:var(--acc);border-color:var(--acc);color:#fff}
+button.opt.rec{border-color:var(--acc)}button.opt.sel{background:color-mix(in srgb,var(--acc) 18%,var(--card));border-color:var(--acc)}
+.tag{font-size:10px;text-transform:uppercase;letter-spacing:.04em;color:var(--acc)}button.prim .tag{color:#fff}
+textarea,input.cmd{width:100%;margin:8px 0 0;font:inherit;color:var(--fg);background:var(--bg);border:1px solid var(--bd);border-radius:6px;padding:6px}
+.acts{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}.confirm,.queued,.msg{margin-top:8px;padding:8px;border-radius:6px;background:var(--bg);border:1px solid var(--bd)}
+code{font:12px ui-monospace,monospace}
 </style>
 </head>
 <body>
@@ -126,19 +137,128 @@ function renderRun(b,items,jobs){
   if(run&&run.stop_reason) h+=`<div class="reason"><b>Stopped:</b> ${esc(run.stop_reason)}</div>`;
   else if(!run&&!total) h+=`<div class="reason empty">No backlog yet. Run /factory plan.</div>`;
   else if(status==="idle"&&total) h+=`<div class="reason empty">No run active. Start one with /factory run.</div>`;
-  $("run").innerHTML=h;
+  h+=runExtras(run);$("run").innerHTML=h;
   $("run").classList.toggle("alert",status==="stopped");
 }
-function renderInbox(md,jobs){
-  const parked=jobs.filter(j=>j.stage==="needs-human");
-  const sections=md.split(/^## /m).slice(1).map(s=>{const i=s.indexOf("\n");return{h:s.slice(0,i).trim(),body:s.slice(i+1).trim()}});
-  if(!parked.length&&!sections.length){$("inbox").innerHTML="";return}
-  const list=sections.length
-    ? sections.map(s=>`<details open><summary>${esc(s.h)}</summary><pre>${esc(s.body)}</pre></details>`).join("")
-    : parked.map(j=>`<details><summary>${esc(j.id)} ${esc(j.title||"")}</summary><pre>${esc(j.parked_reason||"See decision.md or spec.md Open decisions.")}</pre></details>`).join("");
-  $("inbox").innerHTML=`<div class="panel alert"><h2 class="sec">Needs you (${parked.length})</h2>${list}
-    <div class="empty" style="margin-top:6px">Answer these in one batch with /software-factory:grill, then /factory rework &lt;id&gt; or /factory approve &lt;id&gt;.</div></div>`;
+/* ---- Human actions: inbox.json entries, option buttons, queue (server) or copy (read-only) ---- */
+const CMD="/software-factory:factory";
+let BOARD={},JOBS=[],ITEMS=[],ENTRIES=null,MD="",PENDING=[],APPLIED=[],VERIFY={},SERVER=false,TOKEN=null,lastSig="";
+const UI={sel:{},note:{},confirm:{},msg:{},cmd:{}};
+try{
+  const m=location.hash.match(/t=([\w-]+)/);
+  if(m){sessionStorage.setItem("factory-token",m[1]);history.replaceState(null,"",location.pathname+location.search)}
+  TOKEN=sessionStorage.getItem("factory-token");
+}catch(e){}
+const canQueue=()=>SERVER&&!!TOKEN;
+const jsonOf=async p=>{try{const r=await fetch(p+"?"+Date.now());return r.ok?await r.json():null}catch(e){return null}};
+const recOf=q=>(q.options||[]).find(o=>o.recommended);
+function planOf(e){
+  const qs=e.questions||[]; if(!qs.length) return null;
+  const sel=UI.sel[e.job]||{}, thens=[];
+  for(const q of qs){const o=(q.options||[]).find(o=>o.key===sel[q.id]); if(!o) return null; thens.push(o.then||"rework")}
+  return thens.includes("rework")?"rework":"approve";   /* rework wins when answers disagree */
 }
+function composeNote(e){
+  const sel=UI.sel[e.job]||{}, parts=[];
+  (e.questions||[]).forEach(q=>{const o=(q.options||[]).find(o=>o.key===sel[q.id]); if(o) parts.push(`Q${q.id} ${q.text} -> ${o.key}) ${o.label}`)});
+  const n=(UI.note[e.job]||"").trim(); if(n) parts.push(n);
+  return parts.join(" | ").replace(/\s+/g," ");
+}
+function commandFor(e,type){
+  if(type==="resume") return `${CMD} run resume`;
+  if(type==="approve") return `${CMD} approve ${e.job}`;
+  return `${CMD} rework ${e.job} ${composeNote(e)}`;
+}
+const LABEL={approve:"Approve and merge",rework:"Send back to the builder",resume:"Resume run"};
+function entryHtml(e){
+  const job=e.job, d=esc(job), sel=UI.sel[job]||{};
+  const pend=PENDING.filter(a=>a.job===job).pop(), v=VERIFY[job];
+  let h=`<div class="entry"><div class="eh"><b>${d}</b> <span class="badge warn">${esc(e.reason||"")}</span>`
+    +(v?` <span class="chip ${/PASS/.test(v)?"PASS":"CHANGES"}">${esc(v)}</span>`:"")
+    +(e.blocks&&e.blocks.length?` <span class="dep">blocks ${esc(e.blocks.join(", "))}</span>`:"")+`</div>`;
+  if(e.why) h+=`<p class="why">${esc(e.why)}</p>`;
+  if(pend){
+    return h+`<div class="queued">Queued <b>${esc(pend.type)}</b> (${esc(pend.at)}). Now run <code>${CMD} apply</code> in your Claude session. <button data-act="copytext" data-text="${esc(CMD+" apply")}">Copy command</button></div></div>`;
+  }
+  const qs=e.questions||[];
+  qs.forEach(q=>{
+    h+=`<div class="q"><div class="qt">${esc(q.id)}. ${esc(q.text)}</div><div class="opts">`
+      +(q.options||[]).map(o=>`<button class="opt${o.recommended?" rec":""}${sel[q.id]===o.key?" sel":""}" data-act="pick" data-job="${d}" data-q="${esc(q.id)}" data-k="${esc(o.key)}">${esc(o.key)}) ${esc(o.label)}${o.recommended?' <span class="tag">recommended</span>':""}</button>`).join("")
+      +`</div></div>`;
+  });
+  h+=`<textarea data-note="${d}" rows="2" placeholder="Optional note (needed for rework when no option is picked)">${esc(UI.note[job]||"")}</textarea><div class="acts">`;
+  const plan=planOf(e);
+  if(qs.length&&qs.every(recOf)) h+=`<button data-act="rec" data-job="${d}">Use recommendations</button>`;
+  if(qs.length) h+=`<button class="prim" data-act="submit" data-job="${d}" data-type="${plan||""}" ${plan?"":"disabled"}>${plan?esc(LABEL[plan]):"Pick an option for every question"}</button>`;
+  (e.actions||[]).forEach(a=>{ if(LABEL[a.type]&&a.type!=="resume") h+=`<button class="${a.recommended?"prim":""}" data-act="submit" data-job="${d}" data-type="${esc(a.type)}">${esc(a.label||LABEL[a.type])}${a.recommended?' <span class="tag">recommended</span>':""}</button>`});
+  h+=`</div>`;
+  if(UI.confirm[job]) h+=`<div class="confirm">This merges <b>${d}</b> into the default branch. ${v?`Verification: <b>${esc(v)}</b>. `:""}The orchestrator re-runs the tests before merging. <button class="prim" data-act="go" data-job="${d}" data-type="approve">Confirm: queue merge</button> <button data-act="cancel" data-job="${d}">Cancel</button></div>`;
+  if(UI.msg[job]) h+=`<div class="msg">${esc(UI.msg[job])}</div>`;
+  if(UI.cmd[job]) h+=`<input class="cmd" readonly value="${esc(UI.cmd[job])}" onclick="this.select()">`;
+  return h+`</div>`;
+}
+function renderInbox(){
+  const parked=JOBS.filter(j=>j.stage==="needs-human");
+  let body="";
+  if(ENTRIES&&ENTRIES.length) body=ENTRIES.map(entryHtml).join("");
+  else{
+    const sections=MD.split(/^## /m).slice(1).map(s=>{const i=s.indexOf("\n");return{h:s.slice(0,i).trim(),body:s.slice(i+1).trim()}});
+    body=sections.length
+      ? sections.map(s=>`<details open><summary>${esc(s.h)}</summary><pre>${esc(s.body)}</pre></details>`).join("")
+      : parked.map(j=>`<details><summary>${esc(j.id)} ${esc(j.title||"")}</summary><pre>${esc(j.parked_reason||"See decision.md or spec.md Open decisions.")}</pre></details>`).join("");
+  }
+  const log=APPLIED.slice(-8).reverse().map(a=>`<div class="item"><span class="pill ${a.result==="applied"?"done":a.result==="rejected"?"blocked":"parked"}">${esc(a.result)}</span><span class="t">${esc(a.type)} ${esc(a.job||"")} <span class="dep">${esc(a.detail||"")}</span></span></div>`).join("");
+  if(!body&&!log){$("inbox").innerHTML="";return}
+  const n=(ENTRIES&&ENTRIES.length)||parked.length;
+  const mode=canQueue()?`Clicking queues the action; it runs when you enter <code>${CMD} apply</code>.`
+    :`Read-only: start <code>python3 factory/server.py</code> and open the URL it prints to queue actions from here. Buttons copy the command instead.`;
+  $("inbox").innerHTML=(body?`<div class="panel alert"><h2 class="sec">Needs you (${n})</h2>${body}<div class="empty" style="margin-top:6px">${mode}</div></div>`:"")
+    +(log?`<details class="panel"><summary>Recent actions (${APPLIED.length})</summary>${log}</details>`:"");
+}
+function runExtras(run){
+  let h="";
+  if(PENDING.length) h+=`<div class="reason"><b>${PENDING.length} queued action${PENDING.length>1?"s":""}</b> waiting. Run <code>${CMD} apply</code> in your Claude session. <button data-act="copytext" data-text="${esc(CMD+" apply")}">Copy command</button></div>`;
+  if(run&&run.status==="stopped"&&!PENDING.some(a=>a.type==="resume")) h+=`<div class="reason"><button class="prim" data-act="resume">${canQueue()?"Queue: resume run":"Copy: resume command"}</button></div>`;
+  return h;
+}
+async function copyText(key,text){
+  UI.cmd[key]=text;
+  try{await navigator.clipboard.writeText(text);UI.msg[key]="Copied. Paste it into your Claude session."}
+  catch(e){UI.msg[key]="Select and copy the command below."}
+  paint(true);
+}
+async function queue(body,key){
+  try{
+    const r=await fetch("api/action",{method:"POST",headers:{"Content-Type":"application/json","X-Factory-Token":TOKEN},body:JSON.stringify(body)});
+    const j=await r.json().catch(()=>({}));
+    UI.msg[key]=r.status===201?"Queued.":"Not queued: "+(j.error||r.status);
+  }catch(e){UI.msg[key]="Not queued: the server is unreachable."}
+  UI.confirm[key]=false; await load(true);
+}
+document.addEventListener("click",ev=>{
+  const b=ev.target.closest("[data-act]"); if(!b||b.disabled) return;
+  const act=b.dataset.act, job=b.dataset.job, e=job&&(ENTRIES||[]).find(x=>x.job===job);
+  if(act==="copytext") return copyText("run",b.dataset.text);
+  if(act==="resume"){return canQueue()?queue({type:"resume",job:null},"run"):copyText("run",`${CMD} run resume`)}
+  if(!e) return;
+  if(act==="pick"){(UI.sel[job]=UI.sel[job]||{})[b.dataset.q]=b.dataset.k;UI.confirm[job]=false;UI.msg[job]="";return paint(true)}
+  if(act==="rec"){UI.sel[job]=UI.sel[job]||{};(e.questions||[]).forEach(q=>{const r=recOf(q);if(r)UI.sel[job][q.id]=r.key});return paint(true)}
+  if(act==="cancel"){UI.confirm[job]=false;return paint(true)}
+  if(act==="submit"||act==="go"){
+    const type=b.dataset.type; if(!type) return;
+    if(type==="rework"&&!composeNote(e)){UI.msg[job]="Rework needs a note or an answer.";return paint(true)}
+    if(!canQueue()) return copyText(job,commandFor(e,type));
+    if(type==="approve"&&act==="submit"){UI.confirm[job]=true;return paint(true)}
+    return queue({type,job,answers:UI.sel[job]||{},note:UI.note[job]||""},job);
+  }
+});
+document.addEventListener("input",ev=>{const j=ev.target.dataset&&ev.target.dataset.note; if(j) UI.note[j]=ev.target.value});
+function paint(force){
+  renderRun(BOARD,ITEMS,JOBS);renderBacklog(ITEMS);renderEpics(ITEMS);render(JOBS);
+  const sig=JSON.stringify([ENTRIES,MD,PENDING,APPLIED,SERVER,!!TOKEN,VERIFY,JOBS.map(j=>j.stage)]);
+  if(force||sig!==lastSig){lastSig=sig;renderInbox()}
+}
+
 function renderBacklog(items){
   if(!items.length){$("backlog").innerHTML='<div class="empty">—</div>';return}
   $("backlog").innerHTML=items.map(i=>`<div class="item"><span class="pill ${i.status}">${i.status}</span>
@@ -149,14 +269,21 @@ function renderEpics(items){
   const ks=Object.keys(eps).sort((a,b)=>a.localeCompare(b,undefined,{numeric:true}));
   $("epics").innerHTML=ks.length?ks.map(k=>`<div class="ep"><span>${k}</span><div class="track"><i class="d" style="width:${100*eps[k].d/eps[k].n}%"></i></div><span>${eps[k].d}/${eps[k].n}</span></div>`).join(""):'<div class="empty">No [E&lt;n&gt;] tags in the backlog.</div>';
 }
-async function load(){
+async function load(force){
   try{
-    const [b,bl,ib]=await Promise.all([fetch("board.json?"+Date.now()).then(r=>r.json()),txt("backlog.md"),txt("inbox.md")]);
-    const jobs=b.jobs||[];
-    const items=classify(parseBacklog(bl),jobs);
-    renderRun(b,items,jobs);renderInbox(ib,jobs);renderBacklog(items);renderEpics(items);render(jobs);
-    $("meta").textContent="Updated "+new Date().toLocaleTimeString()+" · "+jobs.length+" jobs";
-  }catch(e){$("meta").textContent="Cannot load board.json (serve from factory/ with python3 -m http.server)"}
+    const [b,bl,ib,inj,acts,app,ping]=await Promise.all([
+      fetch("board.json?"+Date.now()).then(r=>r.json()),txt("backlog.md"),txt("inbox.md"),
+      jsonOf("inbox.json"),txt("actions.jsonl"),jsonOf("actions-applied.json"),
+      fetch("api/ping").then(r=>r.ok).catch(()=>false)]);
+    BOARD=b;JOBS=b.jobs||[];ITEMS=classify(parseBacklog(bl),JOBS);MD=ib;SERVER=ping;
+    ENTRIES=inj&&Array.isArray(inj.entries)?inj.entries:null;
+    APPLIED=(app&&Array.isArray(app.applied))?app.applied:[];
+    const done=new Set(APPLIED.map(a=>a.id));
+    PENDING=acts.split("\n").map(l=>{try{return JSON.parse(l)}catch(e){return null}}).filter(a=>a&&a.id&&!done.has(a.id));
+    for(const e of ENTRIES||[]){const t=await txt(`jobs/${e.job}/verify.md`);VERIFY[e.job]=(t.split("\n")[0]||"").trim()}
+    paint(force);
+    $("meta").textContent="Updated "+new Date().toLocaleTimeString()+" · "+JOBS.length+" jobs · "+(canQueue()?"interactive":SERVER?"server running: open the URL it printed to act":"read-only");
+  }catch(e){$("meta").textContent="Cannot load board.json (run python3 server.py inside factory/)"}
 }
 function render(jobs){
   $("board").innerHTML=STAGES.map(s=>{
@@ -182,7 +309,7 @@ async function showFile(id,f){
   try{const r=await fetch(`jobs/${id}/${f}?`+Date.now());$("content").textContent=r.ok?await r.text():"(not written yet)"}
   catch(e){$("content").textContent="(unavailable)"}
 }
-load();setInterval(load,3000);
+load();setInterval(()=>load(false),3000);
 </script>
 </body>
 </html>

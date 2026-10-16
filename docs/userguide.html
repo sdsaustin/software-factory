@@ -130,7 +130,7 @@ claude
   <li><b>Build the skeleton.</b>
 <pre><code>&gt; /software-factory:factory next</code></pre>
   <code>next</code> takes the first unchecked backlog line, ticks it, and runs it as a job (id like <code>001-scaffold</code>). This job is allowed to start without a test command, because its acceptance criteria create one. After it merges, later jobs have a real baseline.</li>
-  <li><b>Build the product one item at a time.</b> Repeat <code>/software-factory:factory next</code>. Each job follows the <a href="#loop">loop</a>: spec, build on <code>factory/&lt;id&gt;</code>, review, triage, approval, merge into the default branch, then a commit that records factory state (<code>factory: record job &lt;id&gt;</code>). Keep the <a href="#dashboard">dashboard</a> open. A card outlined in amber is waiting on you; see <a href="#asks">when it asks</a>. Anything the plan did not include can be added as a new <code>- [ ]</code> line, or started immediately with <code>/software-factory:factory &lt;feature&gt;</code>.</li>
+  <li><b>Build the product one item at a time.</b> Repeat <code>/software-factory:factory next</code>, or let <a href="#unattended"><code>/software-factory:factory run</code></a> do the whole list. Each job follows the <a href="#loop">loop</a>: spec, build on <code>factory/&lt;id&gt;</code>, review, triage, approval, merge into the default branch, then a commit that records factory state (<code>factory: record job &lt;id&gt;</code>). Keep the <a href="#dashboard">dashboard</a> open. A card outlined in amber is waiting on you; see <a href="#asks">when it asks</a>. Anything the plan did not include can be added as a new <code>- [ ]</code> line, or started immediately with <code>/software-factory:factory &lt;feature&gt;</code>.</li>
   <li><b>Close an epic, then look back.</b> When the last item of an epic merges, the factory checks that epic’s “done when” lines in <code>docs/epics.md</code> and tells you which ones hold. Run <code>/software-factory:factory retro</code> when you want a pause (it is also offered every five finished jobs). It proposes lessons. You approve the ones that should be written into <code>CLAUDE.md</code>.</li>
 </ol>
 <div class="callout ok"><b>What “finished” means here.</b> The default branch contains the scaffold and every merged Must item. <code>docs/vision.md</code>, <code>docs/architecture.md</code>, <code>docs/decisions.md</code> and <code>docs/epics.md</code> are the product’s memory: every later spec and review reads them, so a small job cannot quietly contradict a decision you already made.</div>
@@ -212,6 +212,25 @@ claude
   <tr><td>The approver will not merge</td><td><code>decision.md</code> starts with <code>ESCALATE</code> and names the question</td><td><code>/software-factory:factory approve &lt;id&gt;</code> after you have read it, or <code>/software-factory:factory rework &lt;id&gt; &lt;note&gt;</code></td></tr>
   <tr><td>Tests failed after the second review round</td><td><code>verify.md</code> starts with <code>VERIFY: FAIL</code></td><td>Read the failure, then rework with what should change</td></tr>
 </table>
+<h3 id="unattended">Let it run on its own, and answer once at the end</h3>
+<p>Instead of repeating <code>next</code>, run <code>/software-factory:factory run</code> after the plan is approved. It works through the whole backlog on its own, one job at a time, using the same loop and the same bars (reviews, triage, tests, approver). A job that needs you is <b>parked</b>, not waited on: its question goes to <code>factory/inbox.md</code> and <code>inbox.json</code>, and the run carries on with every item that does not depend on it. Items that do depend on a parked job simply wait.</p>
+<ul>
+  <li>Without a human in the loop the spec-writer decides every safe-default choice itself and records it under <b>Assumptions</b> (<code>A1</code>, <code>A2</code>, ...). The run report lists them so you can override any.</li>
+  <li>The backlog gives each item an id and its prerequisites: <code>- [ ] B3 [E1] Report (depends: B2)</code>. The planner writes these.</li>
+  <li>Flags: <code>--max-jobs N</code>, <code>--until E2</code> (or <code>B5</code>), <code>--budget &lt;minutes&gt;</code>.</li>
+</ul>
+<table>
+  <tr><th>The run stops when</th><th>Why</th></tr>
+  <tr><td>No item is ready</td><td>Everything is done, or what is left waits on a parked job</td></tr>
+  <tr><td>A limit you set is reached</td><td><code>--max-jobs</code>, <code>--budget</code>, <code>--until</code></td></tr>
+  <tr><td>Two jobs in a row were parked</td><td>Usually one systemic problem (a bad decision, a flaky test command), not two bad jobs</td></tr>
+  <tr><td>The default branch fails its tests after a merge</td><td>Everything built next would sit on a broken base</td></tr>
+</table>
+<p>A run never pushes and never merges into a protected default branch; those jobs are parked as <code>NEEDS PR</code>.</p>
+<h3 id="clicks">Answer from the dashboard</h3>
+<p>Each parked job appears in the dashboard’s <b>Needs you</b> panel with its question and the options, the recommended one highlighted. Pick an option (or use <b>Use recommendations</b>), add a note if you like, and submit. Approving asks for one more confirmation. The click is only <b>queued</b>; nothing runs until you tell the factory in your Claude session:</p>
+<pre><code>&gt; /software-factory:factory apply</code></pre>
+<p>Apply re-checks every queued action against the current board, then carries it out: <b>approve</b> re-runs the tests from a clean copy of the branch before merging, <b>rework</b> sends the job back with your answers and note, <b>resume</b> continues the stopped run. Results show under <b>Recent actions</b> on the dashboard. You can also skip the dashboard and use <code>approve</code>, <code>rework</code> and <code>run resume</code> directly.</p>
 <p>Two common shapes:</p>
 <h3>A decision before any code</h3>
 <pre><code>&gt; /software-factory:factory let users export audit evidence</code></pre>
@@ -261,7 +280,9 @@ claude
   <tr><td><code>/software-factory:factory plan &lt;vision&gt;</code></td><td>You are starting a product. Omit the vision to resume.</td></tr>
   <tr><td><code>/software-factory:factory document</code></td><td>The code exists and agents need architecture and decisions</td></tr>
   <tr><td><code>/software-factory:factory &lt;feature&gt;</code></td><td>You want one feature through the loop now</td></tr>
-  <tr><td><code>/software-factory:factory next</code></td><td>You want the first unchecked line in <code>factory/backlog.md</code></td></tr>
+  <tr><td><code>/software-factory:factory next</code></td><td>You want the first ready line in <code>factory/backlog.md</code> (unchecked, its prerequisites done)</td></tr>
+  <tr><td><code>/software-factory:factory run [--max-jobs N] [--until E2] [--budget min]</code></td><td>You want the whole backlog worked through without you, stopping only when something needs a human. <code>run resume</code> continues after you answer.</td></tr>
+  <tr><td><code>/software-factory:factory apply</code></td><td>You clicked approve, rework or resume on the dashboard and want it carried out</td></tr>
   <tr><td><code>/software-factory:factory status</code></td><td>You want each job’s stage, track and verdicts</td></tr>
   <tr><td><code>/software-factory:factory approve &lt;id&gt;</code></td><td>You have read <code>decision.md</code> and want a paused job merged</td></tr>
   <tr><td><code>/software-factory:factory rework &lt;id&gt; &lt;note&gt;</code></td><td>You want the builder to change course, then be reviewed again</td></tr>
@@ -283,9 +304,13 @@ docs/
   answers.md  plan-notes.md
 factory/
   board.json                  job stages; only the orchestrator writes this
-  backlog.md                  the queue for /software-factory:factory next
+  backlog.md                  the queue for next and run (B-ids, [E] epics, depends:)
+  inbox.md  inbox.json        parked jobs waiting for you (written by run); inbox.json drives the dashboard buttons
+  actions.jsonl               what you clicked on the dashboard; written only by server.py
+  actions-applied.json        what apply has done with those clicks; written only by the orchestrator
   learnings.md                lessons from retros
   dashboard.html              live board
+  server.py                   local server for the dashboard; queues your clicks
   userguide.html              shorter copy of this guide, written by init
   jobs/&lt;id&gt;/
     spec.md  build.md  decision.md  verify.md  branch.diff
@@ -301,9 +326,12 @@ factory/
 </table>
 
 <h2 id="dashboard">12. Watch the board</h2>
-<pre><code>cd factory && python3 -m http.server 8000
-# open http://localhost:8000/dashboard.html</code></pre>
+<pre><code>python3 factory/server.py
+# open the exact URL it prints, e.g. http://127.0.0.1:8000/dashboard.html#t=...</code></pre>
+<p>The part after <code>#t=</code> is a token created each time the server starts; the page keeps it for that tab and uses it to queue actions. The server listens on 127.0.0.1 only. If the page is opened without the token, or served with <code>python3 -m http.server</code>, it is read-only and its buttons copy the equivalent command instead.</p>
 <p>The page polls <code>board.json</code> every few seconds. Columns are the stages: spec, build, review, triage, decision, needs-human, done. Each card shows the track and a chip per reviewer (<span class="pass">PASS</span>, <span class="chg">CHANGES</span>, or pending). Amber means the job is waiting on you. Open a card to read the spec, build notes, reviews, triage and decision. Opening <code>dashboard.html</code> as a file will not load the board; it has to be served.</p>
+<p>Above the board you also get: a <b>run banner</b> (state, done/in flight/parked counts, why it stopped, a Resume button), <b>Needs you</b> (parked jobs with clickable options, see <a href="#clicks">Answer from the dashboard</a>), the <b>backlog queue</b> (done, active, ready, waiting, parked, blocked) and <b>epic progress</b>.</p>
+<p>What a click can and cannot do: it can queue exactly three things, <b>approve</b> a parked job, <b>rework</b> it with your note, or <b>resume</b> a stopped run, and only for a job that is waiting on you. It cannot write <code>board.json</code>, merge, or run anything by itself. The server refuses other hosts and origins and any request without the token, and <code>apply</code> validates again before acting.</p>
 
 <h2 id="role">13. What to keep doing yourself</h2>
 <ul>
@@ -320,7 +348,10 @@ factory/
   <tr><th>What you see</th><th>What to do</th></tr>
   <tr><td>The job stops at <code>needs-human</code> immediately</td><td>Open <code>spec.md</code>. Either the test command in <code>CLAUDE.md</code> is still <code>&lt;TBD&gt;</code>, or <b>Open decisions</b> is not empty. Answer, then let the spec run again.</td></tr>
   <tr><td>A message that the working tree must be clean, or that the default branch is not checked out</td><td>Commit or stash changes outside <code>factory/</code>, <code>docs/</code> and <code>CLAUDE.md</code>, switch to the default branch, and rerun. <code>/software-factory:factory status</code> shows the branch name the factory recorded.</td></tr>
-  <tr><td>The dashboard cannot load <code>board.json</code></td><td>Run <code>python3 -m http.server</code> inside <code>factory/</code> and open the localhost URL.</td></tr>
+  <tr><td>The dashboard cannot load <code>board.json</code></td><td>Run <code>python3 factory/server.py</code> and open the URL it prints (or <code>python3 -m http.server</code> inside <code>factory/</code> for view-only).</td></tr>
+  <tr><td>Dashboard buttons say “Copy command” instead of queuing</td><td>The page has no token: open the exact URL <code>server.py</code> printed, including <code>#t=...</code>. After a server restart the old token is invalid; open the new URL.</td></tr>
+  <tr><td>A click shows “Queued” but nothing happens</td><td>Queued is not applied. Run <code>/software-factory:factory apply</code> in your Claude session.</td></tr>
+  <tr><td>“Not queued: job is not waiting for a human”</td><td>The board moved on after the page loaded. Wait for the next refresh.</td></tr>
   <tr><td>A review file never appears</td><td>The round waits until every expected reviewer has written a file. A malformed first line is re-run once.</td></tr>
   <tr><td>The merge fails</td><td>A later job changed the same files. <code>/software-factory:factory rework &lt;id&gt; rebase onto the default branch and resolve the conflicts</code>.</td></tr>
   <tr><td>The plan seems to restart</td><td>Run <code>/software-factory:factory plan</code> with no new vision. Approved pass outputs are kept. A pass re-runs only when you give notes or explicitly ask.</td></tr>
