@@ -35,6 +35,6 @@ In any project:
 | `agents/` | planner, spec-writer, builder, reviewer-security/ux/ui/code, triager, approver, retro |
 | `templates/` | Files copied into the project by `init` |
 
-Open `factory/userguide.html` in an initialized project for the full walkthrough and examples.
+Read [`docs/userguide.html`](docs/userguide.html) for walkthroughs: a vague idea through to a shipped product, adding features to existing code, a single small change, and a large capability split into jobs. `init` also copies a shorter guide to `factory/userguide.html` in the project.
 
-Maintainers: see `docs/factoryarchitecture.html` for the architecture, file contracts, flows, invariants, maintenance playbooks and known limitations.
+Maintainers: see [`docs/factoryarchitecture.html`](docs/factoryarchitecture.html) for the architecture, file contracts, flows, invariants, maintenance playbooks and known limitations.

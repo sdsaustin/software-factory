@@ -1,0 +1,338 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Software Factory User Guide</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--fg:#1c2330;--mut:#5f6877;--bd:#dde1e8;--acc:#3b5bdb;--acc2:#e8edff;--pass:#1a7f4b;--chg:#c0392b;--warn:#b7791f;--code:#eef0f4;--c1:#e8edff;--c2:#e6f6ee;--c3:#fff4e0;--c4:#fdebea;--c5:#efe9fb}
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]){--bg:#12151b;--card:#1a1f28;--fg:#e6e9ef;--mut:#9aa3b2;--bd:#2a313d;--acc:#8aa0f7;--acc2:#222b4a;--pass:#4cc38a;--chg:#ef6b5e;--warn:#e0a84a;--code:#232a35;--c1:#222b4a;--c2:#17332a;--c3:#3a2e17;--c4:#3a1f1d;--c5:#2c2447}}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.6 system-ui,sans-serif}
+.layout{display:grid;grid-template-columns:240px minmax(0,1fr);gap:24px;max-width:1180px;margin:0 auto;padding:0 16px 64px}
+aside{position:sticky;top:0;align-self:start;max-height:100vh;overflow:auto;padding:24px 0;font-size:13px}
+aside a{display:block;color:var(--mut);text-decoration:none;padding:2px 0}
+aside a:hover{color:var(--acc)}
+aside .sub{padding-left:12px}
+main{min-width:0}
+header{padding:28px 0 4px}
+h1{font-size:28px;margin:0 0 4px}
+h2{font-size:21px;margin:44px 0 8px;padding-top:10px;border-top:1px solid var(--bd)}
+h3{font-size:16px;margin:24px 0 4px}
+.lead{color:var(--mut);margin:0}
+code{background:var(--code);padding:1px 5px;border-radius:4px;font-size:.88em}
+pre{background:var(--code);padding:12px;border-radius:8px;overflow-x:auto;font-size:12.5px;line-height:1.5}
+pre code{background:none;padding:0}
+table{border-collapse:collapse;width:100%;font-size:13px;display:block;overflow-x:auto}
+th,td{border:1px solid var(--bd);padding:5px 9px;text-align:left;vertical-align:top}
+th{background:var(--code);white-space:nowrap}
+.callout{border-left:4px solid var(--acc);background:var(--card);padding:8px 14px;border-radius:0 8px 8px 0;margin:12px 0}
+.callout.warn{border-color:var(--warn)}.callout.bad{border-color:var(--chg)}.callout.ok{border-color:var(--pass)}
+.pill{display:inline-block;font-size:11px;padding:0 7px;border-radius:99px;border:1px solid var(--bd);background:var(--card);color:var(--mut)}
+.pass{color:var(--pass);font-weight:600}.chg{color:var(--chg);font-weight:600}
+.flow{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:12px 0}
+.step{background:var(--card);border:1px solid var(--bd);border-radius:8px;padding:6px 10px;font-size:13px}
+.arrow{color:var(--mut)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:10px;padding:12px 14px}
+.card h3{margin-top:0}
+.card p:last-child{margin-bottom:0}
+ol.story>li{margin:10px 0}
+@media(max-width:860px){.layout{grid-template-columns:1fr}aside{position:static;max-height:none}.grid2{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="layout">
+<aside>
+  <b>User Guide</b>
+  <a href="#what">1 What this is</a>
+  <a href="#install">2 Install and init</a>
+  <a href="#paths">3 Pick a path</a>
+  <a href="#vague">4 Vague idea to product</a>
+  <a class="sub" href="#vague-story">The walkthrough</a>
+  <a class="sub" href="#vague-you">Where you decide</a>
+  <a href="#existing">5 Features on existing code</a>
+  <a href="#small">6 One small change</a>
+  <a href="#big">7 A big capability</a>
+  <a href="#asks">8 When it asks you</a>
+  <a href="#loop">9 Inside one job</a>
+  <a href="#commands">10 Commands</a>
+  <a href="#files">11 Files you will see</a>
+  <a href="#dashboard">12 Dashboard</a>
+  <a href="#role">13 Your role</a>
+  <a href="#trouble">14 Troubleshooting</a>
+  <a href="#more">Related docs</a>
+</aside>
+<main>
+<header>
+  <h1>Software Factory User Guide</h1>
+  <p class="lead">How to use the <code>software-factory</code> plugin: turn a vague idea into a shipped product, or add features to code you already have. Every step is a file you can open. Maintainers who want internals should read <a href="factoryarchitecture.html">Factory Architecture</a>.</p>
+</header>
+
+<h2 id="what">1. What you are using</h2>
+<p>The factory is a set of skills and agents that run in a Claude Code session. You describe the outcome. The factory writes a spec, builds it on its own git branch, has independent reviewers check the diff, and either merges it or stops with a specific question. There is no server. State lives in <code>factory/</code>, <code>docs/</code> and <code>CLAUDE.md</code> inside your project.</p>
+<div class="grid2">
+  <div class="card"><h3>You keep the judgment</h3><p>Who the product is for, what is in scope, which stack to use, and whether a risky change should merge. Those stops are called <code>needs-human</code>.</p></div>
+  <div class="card"><h3>The factory keeps the paperwork</h3><p>Specs, tests, reviews, triage and the merge. Each agent reads files and writes one file, so a long session can be resumed from disk.</p></div>
+</div>
+<p>Work is sized to the job. A one-line bugfix uses the <b>quick</b> track (security and code review). A feature that touches auth, data or a user flow uses the <b>full</b> track (security, UX, UI and code). A whole product starts with a plan, then a queue of small jobs.</p>
+
+<h2 id="install">2. Install once, then init each project</h2>
+<p>Install the plugin in Claude Code:</p>
+<pre><code>/plugin marketplace add &lt;path-or-github-repo-of-this-plugin&gt;
+/plugin install software-factory@software-factory</code></pre>
+<p>For local development of this repo: <code>claude --plugin-dir /path/to/software-factory</code>.</p>
+<p>In the project you want to build, run init once:</p>
+<pre><code>/software-factory:init</code></pre>
+<p>Init creates <code>factory/</code> (board, backlog, learnings, a live dashboard and a shorter in-project guide) and appends a project-context block to <code>CLAUDE.md</code>. It never overwrites a file that already exists, and it never renames your git branch. Re-running it is safe.</p>
+<p>If the folder is not a git repo yet, init creates one on <code>main</code>. If it already is a repo, init records whatever the default branch is called (<code>main</code>, <code>master</code>, <code>develop</code>, <code>trunk</code>) as <code>default_branch</code> in <code>factory/board.json</code>. Jobs branch from that branch and merge back into it.</p>
+<div class="callout warn"><b>Before a job.</b> Be on the default branch, and have no uncommitted changes outside <code>factory/</code>, <code>docs/</code> and <code>CLAUDE.md</code>. Planning, documenting, status and retros do not need a clean tree.</div>
+
+<h2 id="paths">3. Pick a path</h2>
+<table>
+  <tr><th>Where you are</th><th>What to run</th><th>Walkthrough</th></tr>
+  <tr><td>A sentence or two, no product yet</td><td><code>/software-factory:factory plan &lt;the sentence&gt;</code></td><td><a href="#vague">Vague idea to a finished product</a></td></tr>
+  <tr><td>A clearer vision, still no code</td><td><code>/software-factory:factory plan &lt;vision&gt;</code></td><td>Same path; brainstorm is skipped when the vision already names users and an outcome</td></tr>
+  <tr><td>Working code, and you want the next feature</td><td><code>/software-factory:init</code>, then <code>/software-factory:factory document</code>, then <code>/software-factory:factory &lt;feature&gt;</code></td><td><a href="#existing">Add features to an existing product</a></td></tr>
+  <tr><td>One obvious change</td><td><code>/software-factory:factory &lt;the change&gt;</code></td><td><a href="#small">Ship one small change</a></td></tr>
+  <tr><td>A large new capability on either kind of project</td><td><code>/software-factory:brainstorm</code> or <code>/software-factory:grill</code>, then several backlog items</td><td><a href="#big">Split a big capability</a></td></tr>
+  <tr><td>A job has stopped and is waiting</td><td><code>/software-factory:factory approve &lt;id&gt;</code> or <code>/software-factory:factory rework &lt;id&gt; &lt;note&gt;</code></td><td><a href="#asks">When the factory asks you</a></td></tr>
+</table>
+
+<h2 id="vague">4. Start with a vague idea and finish with a product</h2>
+<p>Use this when you have a direction and little else. Nothing is built until you have approved a vision, an architecture and a backlog. The first built thing is a skeleton with a passing test. Features land one job at a time on the default branch.</p>
+<div class="flow">
+  <span class="step">Init</span><span class="arrow">→</span>
+  <span class="step">Brainstorm</span><span class="arrow">→</span>
+  <span class="step">Grill</span><span class="arrow">→</span>
+  <span class="step">Plan × 3</span><span class="arrow">→</span>
+  <span class="step">Scaffold</span><span class="arrow">→</span>
+  <span class="step">Feature jobs</span><span class="arrow">→</span>
+  <span class="step">Retro</span>
+</div>
+
+<h3 id="vague-story">The walkthrough</h3>
+<p>Imagine the only sentence you have is: “I want an app my household can use to share a grocery list.” That is thin (short, and it does not say who succeeds or what “done” looks like), so planning starts by helping you invent the product before it designs one.</p>
+<ol class="story">
+  <li><b>Make an empty project and init it.</b>
+<pre><code>mkdir grocery && cd grocery
+claude
+&gt; /software-factory:init</code></pre>
+  You get a git repo, <code>factory/board.json</code>, an empty backlog, and a <code>CLAUDE.md</code> whose test command is still <code>&lt;TBD&gt;</code>. That is expected. The scaffold job will fill it in.</li>
+  <li><b>Hand the factory the sentence.</b>
+<pre><code>&gt; /software-factory:factory plan I want an app my household can use to share a grocery list.</code></pre>
+  The vision is saved verbatim to <code>docs/vision-input.md</code>. Because it is thin, <b>brainstorm</b> runs first. The coach asks one question at a time and does not invent the product for you. You generate options (shared list, recurring staples, aisle order, meal plans, receipt scanning, a household chat). The session is logged in <code>docs/brainstorm-log.md</code>. When you are done diverging, you sort with MoSCoW: Must / Should / Could / Won't-this-time. The result is <code>docs/intent.md</code>. A good Must for this story is “people in one household see the same list and can check items off.” Meal plans and receipt scanning go to Won't-this-time.</li>
+  <li><b>Answer the grill.</b> Grill then stress-tests that direction in rounds of numbered questions. Product-defining questions are tagged <code>[open]</code> and come with no recommended answer, so the call stays yours. Mechanical questions are tagged <code>[recommend]</code> and include a suggestion. A first round for this product might ask who is in a household, whether accounts are required on day one, and what “the list is shared” means if two people edit at once. Answers are appended to <code>docs/grill-log.md</code> and folded into <code>docs/intent.md</code>. An interrupted session resumes from the log.</li>
+  <li><b>Approve pass 1 (clarify).</b> The planner writes <code>docs/vision.md</code> and <code>docs/product-brief.md</code>. If it still has questions, they arrive in the same numbered format; your answers go to <code>docs/answers.md</code> and pass 1 runs once more. You read the summary and approve it, or you write notes. Notes are saved to <code>docs/plan-notes.md</code> and that pass re-runs (up to three times, then the factory asks how to proceed). Resume a stopped plan with <code>/software-factory:factory plan</code> and no extra text.</li>
+  <li><b>Approve pass 2 (architecture).</b> You get <code>docs/architecture.md</code> and <code>docs/decisions.md</code>: one record per choice (stack, datastore, auth, hosting, tests, CI), plus a <b>pre-mortem</b> — the ways this product is most likely to fail, and which decision prevents each. For the grocery list that might be “two people overwrite each other” prevented by a single shared list with last-write-wins and a visible updated-at, or “nobody can sign in” prevented by a magic-link and one household id. Push back in plain language. A note re-runs the pass.</li>
+  <li><b>Approve pass 3 (epics and backlog).</b> You get <code>docs/epics.md</code> and a dependency-ordered <code>factory/backlog.md</code>. Backlog lines look like <code>- [ ] [E2] Check an item off from a second device</code>. The <code>[E2]</code> tag ties the job to an epic. The first item is always the <b>scaffold</b>: project skeleton, a passing test, documented commands and CI. Scope stays small on purpose: about seven Must capabilities, at most eight epics, and roughly twenty-five Must backlog items. Should and Could live under <code>## Later</code> in <code>epics.md</code>, so they are remembered and not built yet. If the plan is larger than that, trim it before you approve. On approval, a proposed project-context block is applied to <code>CLAUDE.md</code> (stack, test command, conventions). The factory will not invent “observed pitfalls” at this stage, because nothing has been observed yet.</li>
+  <li><b>Build the skeleton.</b>
+<pre><code>&gt; /software-factory:factory next</code></pre>
+  <code>next</code> takes the first unchecked backlog line, ticks it, and runs it as a job (id like <code>001-scaffold</code>). This job is allowed to start without a test command, because its acceptance criteria create one. After it merges, later jobs have a real baseline.</li>
+  <li><b>Build the product one item at a time.</b> Repeat <code>/software-factory:factory next</code>. Each job follows the <a href="#loop">loop</a>: spec, build on <code>factory/&lt;id&gt;</code>, review, triage, approval, merge into the default branch, then a commit that records factory state (<code>factory: record job &lt;id&gt;</code>). Keep the <a href="#dashboard">dashboard</a> open. A card outlined in amber is waiting on you; see <a href="#asks">when it asks</a>. Anything the plan did not include can be added as a new <code>- [ ]</code> line, or started immediately with <code>/software-factory:factory &lt;feature&gt;</code>.</li>
+  <li><b>Close an epic, then look back.</b> When the last item of an epic merges, the factory checks that epic’s “done when” lines in <code>docs/epics.md</code> and tells you which ones hold. Run <code>/software-factory:factory retro</code> when you want a pause (it is also offered every five finished jobs). It proposes lessons. You approve the ones that should be written into <code>CLAUDE.md</code>.</li>
+</ol>
+<div class="callout ok"><b>What “finished” means here.</b> The default branch contains the scaffold and every merged Must item. <code>docs/vision.md</code>, <code>docs/architecture.md</code>, <code>docs/decisions.md</code> and <code>docs/epics.md</code> are the product’s memory: every later spec and review reads them, so a small job cannot quietly contradict a decision you already made.</div>
+<div class="callout"><b>Commit the plan.</b> After you approve a pass, commit <code>docs/</code> and <code>factory/</code>. The factory offers a commit at the end (<code>factory: plan</code>). Those files are what an interrupted session resumes from.</div>
+
+<h3 id="vague-you">Where you actually decide</h3>
+<table>
+  <tr><th>Moment</th><th>You are deciding</th></tr>
+  <tr><td>Brainstorm MoSCoW</td><td>Which ideas are the product, and which wait</td></tr>
+  <tr><td>Grill <code>[open]</code> questions</td><td>Users, success, scope, tenancy, regulations</td></tr>
+  <tr><td>Pass 1 approval</td><td>The vision and brief match what you meant</td></tr>
+  <tr><td>Pass 2 approval</td><td>The stack and the pre-mortem are acceptable</td></tr>
+  <tr><td>Pass 3 approval</td><td>The build order is right, and the backlog is small enough to start</td></tr>
+  <tr><td>Each <code>needs-human</code> job</td><td>Answer, approve the merge, or send it back</td></tr>
+  <tr><td>Retro</td><td>Which lessons become standing rules in <code>CLAUDE.md</code></td></tr>
+</table>
+<p>If you want an unattended plan, say so. Grill and brainstorm will answer what they can, mark those answers <code>(assumed)</code>, and list every assumption at the approval gate. They will not invent answers to open product questions; those stay open until you reply.</p>
+
+<h2 id="existing">5. Add features to a product that already exists</h2>
+<p>Use this when the repository already builds and you want the factory to extend it. You skip the three-pass product plan. You do write down what the code already decided, so later specs do not fight it.</p>
+<div class="flow">
+  <span class="step">Clean tree, default branch</span><span class="arrow">→</span>
+  <span class="step">Init</span><span class="arrow">→</span>
+  <span class="step">Document</span><span class="arrow">→</span>
+  <span class="step">One feature</span><span class="arrow">→</span>
+  <span class="step">A backlog of more</span>
+</div>
+<ol class="story">
+  <li><b>Prepare the repo.</b> Commit or stash your own code changes. Check out the default branch. If that branch is protected or requires pull requests, the factory will push <code>factory/&lt;id&gt;</code> and ask you to open the PR. It will not force a local merge.</li>
+  <li><b>Init inside the repo.</b>
+<pre><code>&gt; /software-factory:init</code></pre>
+  Factory files are added beside your code. The project-context block is appended to <code>CLAUDE.md</code> if it is not already there. Because source files exist, init looks up the test, lint and build commands, runs the tests once, and shows you the exact lines it wants to write. Approve them. Then add only facts an agent cannot learn by reading the code: a policy, a frozen or generated path, a convention that is not the framework default, a mistake you have actually seen. Skip directory trees and tech-stack lists.</li>
+  <li><b>Document what is already true.</b>
+<pre><code>&gt; /software-factory:factory document</code></pre>
+  The planner reads manifests, config, entrypoints, data models, CI and git history. It drafts <code>docs/architecture.md</code> and <code>docs/decisions.md</code>. Every decision starts as <code>Status: inferred</code> and cites the file or commit it came from. Where the code cannot say <i>why</i>, you are grilled (why this database, which areas are legacy, which conventions are law). Answered decisions become <code>Status: accepted</code>. You approve the component list, the decisions, and the proposed <code>CLAUDE.md</code> facts before they are applied. Inferred decisions still bind later specs, but a conflict with an inferred decision is a question for you, not an automatic failure.</li>
+  <li><b>Ask for one feature in terms of the outcome.</b>
+<pre><code>&gt; /software-factory:factory add a CSV export of the evidence list, scoped to the current tenant</code></pre>
+  The spec-writer reads the repo and the new docs, runs the baseline tests, and writes <code>factory/jobs/&lt;id&gt;/spec.md</code> with intent, non-goals, numbered acceptance criteria and a track. If something is a real product choice with no safe default (CSV or PDF, who may export), the job stops at <code>needs-human</code> and grills you before any code is written. Your answers are saved and the spec is rewritten once. Then build, review, triage and approval run as in <a href="#loop">the loop</a>.</li>
+  <li><b>Queue the rest.</b> Put further features in <code>factory/backlog.md</code>:
+<pre><code>- [ ] Filter the evidence list by control id
+- [ ] Email the exporter when a large CSV is ready</code></pre>
+  Then <code>/software-factory:factory next</code>, one item per session. Keep each job to about five acceptance criteria. A larger change belongs in <a href="#big">several jobs</a>.</li>
+</ol>
+<div class="callout warn"><b>Pre-existing bugs stay pre-existing.</b> Reviews judge the change against its spec. A problem that was already in the code is triaged as <code>defer</code> and logged. It is not fixed inside the feature job. If the baseline tests are already failing, the spec records that, so the builder is not blamed for it.</div>
+
+<h2 id="small">6. Ship one small change</h2>
+<p>Use this for a change whose behavior you can state in a sentence and whose blast radius is one area: a health check, a copy fix, a validation rule, a bug with an obvious correct result.</p>
+<pre><code>&gt; /software-factory:factory add a GET /health endpoint that returns {"status":"ok"}</code></pre>
+<p>A smooth run looks like this:</p>
+<ol>
+  <li>Job <code>001-health-endpoint</code> is created. The spec-writer records <code>Track: quick</code>, two acceptance criteria (200 and that JSON body; no authentication), the baseline test command, and no open decisions.</li>
+  <li>The builder creates branch <code>factory/001-health-endpoint</code>, adds the route and tests, commits, and writes <code>build.md</code> mapping each acceptance criterion to a test name. Factory state is not committed on that branch.</li>
+  <li>Quick track runs two reviewers in parallel. Security passes. Code review might flag something the spec called a non-goal (for example, behavior during shutdown). Triage marks that finding <code>dismiss</code> and writes <code>TRIAGE: CLEAN</code>.</li>
+  <li>The orchestrator runs the tests on the job branch, writes <code>verify.md</code> and <code>branch.diff</code>, and the approver writes <code>APPROVE</code>. The branch is merged with <code>git merge --no-ff</code>. The card moves to <b>done</b>.</li>
+</ol>
+<p>Say the outcome, not the file to edit. “Return 200 and <code>{"status":"ok"}</code> from <code>GET /health</code> with no auth” gives the spec-writer acceptance criteria. “Add a function in <code>src/health.ts</code>” does not.</p>
+
+<h2 id="big">7. A big capability, split into jobs</h2>
+<p>Use this when the ask is a capability, not a change. “Add billing”, “let customers invite their team”, or “support SOC 2 evidence collection” will make a spec with too many acceptance criteria, and the review will thrash.</p>
+<ol class="story">
+  <li><b>Settle the shape first.</b> If you can already describe it, run <code>/software-factory:grill let customers invite teammates and revoke access</code>. If you cannot, run <code>/software-factory:brainstorm team access</code> and then grill the direction you chose. Both write <code>docs/intent.md</code>.</li>
+  <li><b>Record the decisions that later jobs must share.</b> Add them to <code>docs/decisions.md</code> (invite by email, one role or several, what happens to data when someone is removed). Specs and reviews treat that file as binding.</li>
+  <li><b>Turn the intent into backlog lines</b>, each small enough for about five acceptance criteria, in dependency order:
+<pre><code>- [ ] Invite a teammate by email to the current tenant
+- [ ] Accept an invite and land in that tenant
+- [ ] Remove a teammate and invalidate their session</code></pre>
+  </li>
+  <li><b>Run them with</b> <code>/software-factory:factory next</code>. Each one still gets its own spec, branch, review and merge. The second job sees the first job’s code on the default branch.</li>
+</ol>
+<p>On a brand-new product, you usually do not do this by hand. <a href="#vague">Pass 3</a> already produces that ordered backlog. Use this section when the product exists and the new capability showed up later.</p>
+
+<h2 id="asks">8. When the factory stops and asks you</h2>
+<p>A job in <code>needs-human</code> is paused on purpose. Read the file it points at, then answer with one of the two commands. Nothing in that state merges on its own.</p>
+<table>
+  <tr><th>Why it stopped</th><th>What you see</th><th>What you do</th></tr>
+  <tr><td>The spec has a product choice with no safe default</td><td><code>spec.md</code> section <b>Open decisions</b>, then a grill</td><td>Answer the questions. The spec is rewritten and the build starts. Code has not been written yet.</td></tr>
+  <tr><td>There is no test command in <code>CLAUDE.md</code></td><td>The job never leaves the gate (the scaffold job is the exception)</td><td>Fill in the test command, or let the spec-writer fill it when the stack already exists.</td></tr>
+  <tr><td>Triage found a product call, or two reasonable fixes</td><td><code>TRIAGE: DECISION</code> in <code>round-N/triage.md</code></td><td><code>/software-factory:factory rework &lt;id&gt; &lt;which fix you want&gt;</code></td></tr>
+  <tr><td>The approver will not merge</td><td><code>decision.md</code> starts with <code>ESCALATE</code> and names the question</td><td><code>/software-factory:factory approve &lt;id&gt;</code> after you have read it, or <code>/software-factory:factory rework &lt;id&gt; &lt;note&gt;</code></td></tr>
+  <tr><td>Tests failed after the second review round</td><td><code>verify.md</code> starts with <code>VERIFY: FAIL</code></td><td>Read the failure, then rework with what should change</td></tr>
+</table>
+<p>Two common shapes:</p>
+<h3>A decision before any code</h3>
+<pre><code>&gt; /software-factory:factory let users export audit evidence</code></pre>
+<p>Open decisions: which formats, and whether an export may include another tenant’s rows. The job waits. You reply:</p>
+<pre><code>&gt; /software-factory:factory rework 002-export-evidence CSV only, current tenant, at most 10k rows</code></pre>
+<p>That note is appended to <code>spec.md</code> under <b>Human amendments</b> (it overrides anything above it) and to <code>build.md</code>. Reviewers judge the amended intent. A human rework grants two more review rounds.</p>
+<h3>A review that found a real defect</h3>
+<p>Round 1: security reports a missing authorization check. Triage verifies it and marks it <code>patch</code>. The same builder is resumed and fixes it. Round 2 passes, and the job can merge. If a high-severity patch is still open after round 2, the approver escalates. You then either accept it:</p>
+<pre><code>&gt; /software-factory:factory approve 003-roles-page</code></pre>
+<p>or send a concrete note:</p>
+<pre><code>&gt; /software-factory:factory rework 003-roles-page hide the page until the membership check passes</code></pre>
+<p>There are at most two review rounds per cycle. <code>/software-factory:factory approve &lt;id&gt;</code> is only for a job already in <code>needs-human</code>. The factory shows you <code>decision.md</code> before it merges.</p>
+
+<h2 id="loop">9. What happens inside one job</h2>
+<div class="flow">
+  <span class="step">1 Spec</span><span class="arrow">→</span>
+  <span class="step">2 Gate</span><span class="arrow">→</span>
+  <span class="step">3 Build</span><span class="arrow">→</span>
+  <span class="step">4 Review</span><span class="arrow">→</span>
+  <span class="step">5 Triage</span><span class="arrow">→</span>
+  <span class="step">6 Approve</span><span class="arrow">→</span>
+  <span class="step">merged</span>
+</div>
+<table>
+  <tr><th>Step</th><th>Who</th><th>What you get</th></tr>
+  <tr><td>Spec</td><td>spec-writer</td><td><code>factory/jobs/&lt;id&gt;/spec.md</code> — intent, non-goals, numbered acceptance criteria, assumptions, baseline test run, and <code>Track: quick</code> or <code>full</code></td></tr>
+  <tr><td>Gate</td><td>orchestrator</td><td>Build starts only when intent, acceptance criteria and a test command are present. Open decisions stop the job first.</td></tr>
+  <tr><td>Build</td><td>builder, on <code>factory/&lt;id&gt;</code></td><td>Code, tests, and <code>build.md</code> mapping each acceptance criterion to evidence</td></tr>
+  <tr><td>Review</td><td>reviewers, in parallel</td><td><code>round-N/security.md</code> and <code>code.md</code>; full track also writes <code>ux.md</code> and <code>ui.md</code>. A round is complete only when every expected file exists.</td></tr>
+  <tr><td>Triage</td><td>triager</td><td><code>round-N/triage.md</code>. <code>CLEAN</code> goes to approval. <code>PATCH</code> sends the builder back if this is round 1. <code>DECISION</code> asks you.</td></tr>
+  <tr><td>Decide</td><td>approver, after tests are re-run</td><td><code>decision.md</code>. <span class="pass">APPROVE</span> merges. <span class="chg">ESCALATE</span> waits for you. The approver does not merge; the orchestrator does, after approval.</td></tr>
+</table>
+<h3>How findings are routed</h3>
+<table>
+  <tr><th>Route</th><th>Meaning</th><th>What happens</th></tr>
+  <tr><td><code>dismiss</code></td><td>Noise, or already outside the spec (the reason is recorded)</td><td>Ignored</td></tr>
+  <tr><td><code>patch</code></td><td>One clear fix</td><td>The builder fixes it on the next round</td></tr>
+  <tr><td><code>defer</code></td><td>The problem existed before this change</td><td>Logged, not fixed in this job</td></tr>
+  <tr><td><code>decision</code></td><td>More than one reasonable fix, or a product call</td><td>The job becomes <code>needs-human</code></td></tr>
+</table>
+<p>Quick track is for a small, obvious change in one area. Full track is for auth, data, several areas, or a UI flow. Security hardening of untrusted input is written as an acceptance criterion, so it is tested rather than left as a suggestion.</p>
+
+<h2 id="commands">10. Commands</h2>
+<table>
+  <tr><th>Command</th><th>Use it when</th></tr>
+  <tr><td><code>/software-factory:init</code></td><td>Once per project, empty or existing</td></tr>
+  <tr><td><code>/software-factory:factory plan &lt;vision&gt;</code></td><td>You are starting a product. Omit the vision to resume.</td></tr>
+  <tr><td><code>/software-factory:factory document</code></td><td>The code exists and agents need architecture and decisions</td></tr>
+  <tr><td><code>/software-factory:factory &lt;feature&gt;</code></td><td>You want one feature through the loop now</td></tr>
+  <tr><td><code>/software-factory:factory next</code></td><td>You want the first unchecked line in <code>factory/backlog.md</code></td></tr>
+  <tr><td><code>/software-factory:factory status</code></td><td>You want each job’s stage, track and verdicts</td></tr>
+  <tr><td><code>/software-factory:factory approve &lt;id&gt;</code></td><td>You have read <code>decision.md</code> and want a paused job merged</td></tr>
+  <tr><td><code>/software-factory:factory rework &lt;id&gt; &lt;note&gt;</code></td><td>You want the builder to change course, then be reviewed again</td></tr>
+  <tr><td><code>/software-factory:factory retro</code></td><td>You want lessons from finished jobs</td></tr>
+  <tr><td><code>/software-factory:brainstorm [topic]</code></td><td>The idea is still a sentence and you want options before a plan</td></tr>
+  <tr><td><code>/software-factory:grill [topic]</code></td><td>You want a plan, idea or spec stress-tested until nothing important is assumed</td></tr>
+</table>
+<p>With no topic, grill uses the current conversation or the latest artifact (<code>docs/vision.md</code> or a job’s <code>spec.md</code>).</p>
+
+<h2 id="files">11. Files you will see</h2>
+<pre><code>CLAUDE.md                     facts agents cannot learn from the code; test command
+docs/
+  vision-input.md             the words you typed into /software-factory:factory plan
+  brainstorm-log.md           ideas from a brainstorm
+  grill-log.md                decisions from a grill (resumable)
+  intent.md                   the chosen direction, ready for the planner
+  vision.md  product-brief.md
+  architecture.md  decisions.md  epics.md
+  answers.md  plan-notes.md
+factory/
+  board.json                  job stages; only the orchestrator writes this
+  backlog.md                  the queue for /software-factory:factory next
+  learnings.md                lessons from retros
+  dashboard.html              live board
+  userguide.html              shorter copy of this guide, written by init
+  jobs/&lt;id&gt;/
+    spec.md  build.md  decision.md  verify.md  branch.diff
+    round-1/  security.md  ux.md  ui.md  code.md  triage.md
+    round-2/  ...</code></pre>
+<p>The first line of a result file is fixed, so the orchestrator can route without reading the essay underneath:</p>
+<table>
+  <tr><th>File</th><th>First line</th></tr>
+  <tr><td>A review</td><td><code>VERDICT: PASS</code> or <code>VERDICT: CHANGES</code></td></tr>
+  <tr><td><code>triage.md</code></td><td><code>TRIAGE: CLEAN</code>, <code>PATCH</code> or <code>DECISION</code></td></tr>
+  <tr><td><code>decision.md</code></td><td><code>APPROVE</code> or <code>ESCALATE</code></td></tr>
+  <tr><td><code>verify.md</code></td><td><code>VERIFY: PASS</code> or <code>VERIFY: FAIL</code></td></tr>
+</table>
+
+<h2 id="dashboard">12. Watch the board</h2>
+<pre><code>cd factory && python3 -m http.server 8000
+# open http://localhost:8000/dashboard.html</code></pre>
+<p>The page polls <code>board.json</code> every few seconds. Columns are the stages: spec, build, review, triage, decision, needs-human, done. Each card shows the track and a chip per reviewer (<span class="pass">PASS</span>, <span class="chg">CHANGES</span>, or pending). Amber means the job is waiting on you. Open a card to read the spec, build notes, reviews, triage and decision. Opening <code>dashboard.html</code> as a file will not load the board; it has to be served.</p>
+
+<h2 id="role">13. What to keep doing yourself</h2>
+<ul>
+  <li><b>Write the outcome.</b> Who can do what, and how you will know it works. Leave the file layout to the spec and the builder.</li>
+  <li><b>Stay available at the gates.</b> Planning has three approvals. Jobs stop when a choice is actually yours. Answering before code is written is cheaper than reviewing the wrong build.</li>
+  <li><b>Read <code>decision.md</code> before <code>/software-factory:factory approve &lt;id&gt;</code>.</b> Approval is a merge.</li>
+  <li><b>Read security-sensitive diffs yourself</b> when a job touches auth, tenant isolation or an audit trail, including after <code>APPROVE</code>.</li>
+  <li><b>Put repeated mistakes into <code>CLAUDE.md</code></b> as observed pitfalls, after you have seen them. The retro drafts these; you approve them. The factory does not edit that section on its own.</li>
+  <li><b>Leave finished job folders in place.</b> Later builds, reviews and retros read them.</li>
+</ul>
+
+<h2 id="trouble">14. Troubleshooting</h2>
+<table>
+  <tr><th>What you see</th><th>What to do</th></tr>
+  <tr><td>The job stops at <code>needs-human</code> immediately</td><td>Open <code>spec.md</code>. Either the test command in <code>CLAUDE.md</code> is still <code>&lt;TBD&gt;</code>, or <b>Open decisions</b> is not empty. Answer, then let the spec run again.</td></tr>
+  <tr><td>A message that the working tree must be clean, or that the default branch is not checked out</td><td>Commit or stash changes outside <code>factory/</code>, <code>docs/</code> and <code>CLAUDE.md</code>, switch to the default branch, and rerun. <code>/software-factory:factory status</code> shows the branch name the factory recorded.</td></tr>
+  <tr><td>The dashboard cannot load <code>board.json</code></td><td>Run <code>python3 -m http.server</code> inside <code>factory/</code> and open the localhost URL.</td></tr>
+  <tr><td>A review file never appears</td><td>The round waits until every expected reviewer has written a file. A malformed first line is re-run once.</td></tr>
+  <tr><td>The merge fails</td><td>A later job changed the same files. <code>/software-factory:factory rework &lt;id&gt; rebase onto the default branch and resolve the conflicts</code>.</td></tr>
+  <tr><td>The plan seems to restart</td><td>Run <code>/software-factory:factory plan</code> with no new vision. Approved pass outputs are kept. A pass re-runs only when you give notes or explicitly ask.</td></tr>
+</table>
+
+<h2 id="more">Related docs</h2>
+<ul>
+  <li><a href="factoryarchitecture.html">Factory Architecture</a> — components, file contracts, invariants and maintenance, for people changing this plugin.</li>
+  <li><code>README.md</code> — install and the command list.</li>
+  <li><code>factory/userguide.html</code> in a project after init — a shorter guide that travels with that project. Init copies it from the plugin templates and does not overwrite it later.</li>
+</ul>
+</main>
+</div>
+</body>
+</html>
