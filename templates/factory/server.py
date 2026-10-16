@@ -58,6 +58,8 @@ def validate(d, board):
         j = next((x for x in board.get("jobs", []) if x.get("id") == job), None)
         if j is None or j.get("stage") != "needs-human":
             return "job is not waiting for a human"
+        if t == "approve" and not os.path.isfile(os.path.join(ROOT, "jobs", job, "build.md")):
+            return "nothing to merge yet: this job was never built; answer it with rework"
     answers = d.get("answers", {})
     if not isinstance(answers, dict) or len(answers) > 10:
         return "bad answers"

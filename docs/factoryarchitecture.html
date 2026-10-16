@@ -455,7 +455,7 @@ factory/
 <tr><th>Threat</th><th>Control</th></tr>
 <tr><td>A web page you visit posts "approve" to localhost</td><td>Per-run random token (printed after <code>#</code>, so never sent to a server or logged), required in <code>X-Factory-Token</code>; <code>Origin</code> must match the server; body must be <code>application/json</code>; no CORS headers are ever sent</td></tr>
 <tr><td>DNS rebinding reads <code>board.json</code> or the token</td><td>Binds 127.0.0.1 only; any request whose <code>Host</code> is not <code>127.0.0.1:port</code>, <code>localhost:port</code> or <code>[::1]:port</code> gets 403</td></tr>
-<tr><td>A forged or stale action</td><td>The server only accepts jobs currently <code>needs-human</code> and three action types; the orchestrator validates again at apply time and marks stale or malformed ones <code>stale</code>/<code>rejected</code></td></tr>
+<tr><td>A forged or stale action</td><td>The server only accepts jobs currently <code>needs-human</code> and three action types (<code>approve</code> also requires that the job was built, i.e. <code>build.md</code> exists); the orchestrator validates again at apply time and marks stale or malformed ones <code>stale</code>/<code>rejected</code></td></tr>
 <tr><td>Oversized or hostile input</td><td>Body ≤ 16 KB, note ≤ 4000 chars with control characters stripped, answer keys/values constrained to small ids</td></tr>
 <tr><td>Approving something that no longer passes</td><td>Apply re-runs the tests from a <code>git archive</code> of the branch before any merge; failure leaves the job in <code>needs-human</code></td></tr>
 </table>
@@ -604,6 +604,7 @@ claude -p "/software-factory:brainstorm …" --plugin-dir $PL                   
 <tr><td>1.4.1</td><td>Sandbox findings: default branch re-checked after every agent run, reviewers/triager/approver read-only on git; patch-round AC refinements recorded in the spec; backlog lines ticked only on merge.</td></tr>
 <tr><td>1.4.2</td><td>Verification from a <code>git archive</code> instead of <code>git switch</code> (a failed switch had produced a false <code>VERIFY: FAIL</code>); <code>approve</code> handles jobs that never reached the approver.</td></tr>
 <tr><td>1.5.0</td><td>Act from the dashboard: <code>inbox.json</code> with recommended options, <code>server.py</code> action queue, <code>/factory apply</code>; both guides and this document updated.</td></tr>
+<tr><td>1.5.1</td><td>Sandbox test of dashboard actions: <code>approve</code> on a job that never reached a build (parked at the readiness gate) is refused by both the server and <code>apply</code>; such jobs are answered with <code>rework</code>.</td></tr>
 </table>
 
 <h2 id="glossary">17. Glossary</h2>
