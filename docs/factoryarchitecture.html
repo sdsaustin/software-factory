@@ -608,6 +608,7 @@ claude -p "/software-factory:brainstorm …" --plugin-dir $PL                   
 <tr><td>1.5.2</td><td>Sandbox end-to-end test: the state commit no longer aborts when <code>docs/</code> does not exist; agents are told the project root and default branch by name, a reviewer that did not write its file is re-run instead of trusted, and the builder returns to the default branch before handing back.</td></tr>
 <tr><td>1.5.3</td><td>Dashboard and inbox fixes from the second sandbox run: a tab opened without the <code>#t=</code> token now says so (and keeps the token across tabs, and drops a rejected one) instead of silently turning read-only; inbox options for a <code>DECISION</code> entry are copied verbatim from the spec's Open decisions so answer letters cannot drift.</td></tr>
 <tr><td>1.5.4</td><td>Side-effect hygiene: every agent that can run a shell is told to run the project's code and tests with a throwaway <code>HOME</code>, and the orchestrator's verify step does the same. Found when a builder's manual check wrote to the real <code>~/.temp_history</code> although the run prompt forbade it.</td></tr>
+<tr><td>1.5.5</td><td>SKILL.md clarifications from the multi-item run: headless mode parks at the readiness gate instead of grilling; one inbox entry per job (replace, never append a second); the orchestrator recounts <code>assumptions</code> after every spec-writer run; a rework or approve that un-parks a job continues a stopped run (status, stop_reason, current, consecutive_failures).</td></tr>
 </table>
 
 <h2 id="glossary">17. Glossary</h2>
