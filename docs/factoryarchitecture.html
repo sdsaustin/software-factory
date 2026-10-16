@@ -607,6 +607,7 @@ claude -p "/software-factory:brainstorm …" --plugin-dir $PL                   
 <tr><td>1.5.1</td><td>Sandbox test of dashboard actions: <code>approve</code> on a job that never reached a build (parked at the readiness gate) is refused by both the server and <code>apply</code>; such jobs are answered with <code>rework</code>.</td></tr>
 <tr><td>1.5.2</td><td>Sandbox end-to-end test: the state commit no longer aborts when <code>docs/</code> does not exist; agents are told the project root and default branch by name, a reviewer that did not write its file is re-run instead of trusted, and the builder returns to the default branch before handing back.</td></tr>
 <tr><td>1.5.3</td><td>Dashboard and inbox fixes from the second sandbox run: a tab opened without the <code>#t=</code> token now says so (and keeps the token across tabs, and drops a rejected one) instead of silently turning read-only; inbox options for a <code>DECISION</code> entry are copied verbatim from the spec's Open decisions so answer letters cannot drift.</td></tr>
+<tr><td>1.5.4</td><td>Side-effect hygiene: every agent that can run a shell is told to run the project's code and tests with a throwaway <code>HOME</code>, and the orchestrator's verify step does the same. Found when a builder's manual check wrote to the real <code>~/.temp_history</code> although the run prompt forbade it.</td></tr>
 </table>
 
 <h2 id="glossary">17. Glossary</h2>

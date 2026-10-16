@@ -20,3 +20,5 @@ Round 0:
 Later rounds: you are told which `round-N/triage.md` to read. Fix ONLY items routed as `patch`. Do not act on dismissed or deferred items. Re-run tests, commit, and append a `## Round N` section to `build.md` listing what changed per finding.
 
 Rules: write only code on your branch plus `build.md`. Never touch `factory/board.json`, other jobs' files, or the default branch (`default_branch` in board.json). Never merge. If a spec is wrong or unclear, say so in `build.md` rather than guessing.
+
+Side-effect hygiene: whenever you run the project's code or tests, including quick manual checks, give it a throwaway home so it cannot write to the real user home directory or other real user state: prefix the command with `HOME=$(mktemp -d)` (plus any opt-out the project documents, such as a no-history or no-telemetry variable). A tool that stores files under `~` will otherwise litter the human's machine; if a check does write there, say so in your report instead of deleting it yourself.
