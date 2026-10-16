@@ -185,6 +185,7 @@ th{background:var(--code)}
   <tr><th>Command</th><th>Use it to</th></tr>
   <tr><td><code>/factory &lt;feature&gt;</code></td><td>Run a new job through the whole loop</td></tr>
   <tr><td><code>/factory plan &lt;vision&gt;</code></td><td>Plan a whole product from a vision: brief, architecture decisions, epics, ordered backlog. Run it with no argument to resume.</td></tr>
+  <tr><td><code>/factory run [--max-jobs N] [--until E2] [--budget minutes]</code></td><td>Autonomous outer loop: runs every ready backlog item, parks any job that needs a human (questions go to <code>factory/inbox.md</code>, shown in the dashboard), keeps working on independent items, and stops on a circuit breaker. <code>/factory run resume</code> continues after you answer the inbox.</td></tr>
   <tr><td><code>/factory next</code></td><td>Run the first unchecked item in <code>factory/backlog.md</code></td></tr>
   <tr><td><code>/factory status</code></td><td>Print the board: each job's stage, track and verdicts</td></tr>
   <tr><td><code>/factory approve &lt;id&gt;</code></td><td>Merge a <code>needs-human</code> job after you have read its <code>decision.md</code></td></tr>
@@ -232,7 +233,8 @@ round-1/code.md      VERDICT: CHANGES   (code.md:  src/health.ts:12 - returns 20
 docs/                              vision, brief, architecture, decisions, epics (from /factory plan)
 factory/
   board.json                       job state (orchestrator writes it)
-  backlog.md                       queue for /factory next
+  backlog.md                       queue for /factory next and /factory run (B-ids, [E] epics, depends:)
+  inbox.md                         parked jobs waiting for you (written by /factory run)
   learnings.md                     lessons from retros, read by all agents
   dashboard.html                   the live board
   userguide.html                   this page

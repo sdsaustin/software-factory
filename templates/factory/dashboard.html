@@ -11,13 +11,44 @@
 body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.4 system-ui,sans-serif}
 header{padding:16px;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
 h1{font-size:18px;margin:0}
+h2.sec{font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:var(--mut);margin:0 0 8px}
 #meta{color:var(--mut);font-size:12px}
-main{display:grid;grid-template-columns:repeat(7,minmax(160px,1fr));gap:12px;padding:0 16px 16px;overflow-x:auto}
+.wrap{padding:0 16px 16px}
+.panel{background:var(--card);border:1px solid var(--bd);border-radius:8px;padding:12px;margin-bottom:12px}
+.panel.alert{border-color:var(--warn);box-shadow:0 0 0 2px color-mix(in srgb,var(--warn) 30%,transparent)}
+/* run banner */
+.run{display:flex;gap:16px;align-items:center;flex-wrap:wrap}
+.state{font-weight:600;padding:2px 10px;border-radius:99px;color:#fff;background:var(--pend)}
+.state.running{background:var(--acc)}.state.done{background:var(--pass)}.state.stopped{background:var(--warn)}
+.stat{font-size:12px;color:var(--mut)}.stat b{display:block;font-size:18px;color:var(--fg)}
+.bar{flex:1 1 200px;min-width:160px}
+.track{height:8px;border-radius:99px;background:var(--bd);overflow:hidden;display:flex}
+.track i{display:block;height:100%}
+.track .d{background:var(--pass)}.track .a{background:var(--acc)}.track .p{background:var(--warn)}
+.reason{margin-top:8px;font-size:13px}
+/* two-column row */
+.row{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:12px}
+details{border-top:1px solid var(--bd);padding:6px 0}
+details:first-of-type{border-top:0}
+summary{cursor:pointer;font-weight:600}
+details pre{white-space:pre-wrap;word-break:break-word;margin:6px 0 0;font:12px/1.4 ui-monospace,monospace}
+/* backlog */
+.item{display:flex;gap:8px;align-items:baseline;padding:4px 0;border-top:1px solid var(--bd);font-size:13px}
+.item:first-of-type{border-top:0}
+.item .t{flex:1}
+.pill{font-size:11px;padding:1px 6px;border-radius:4px;color:#fff;background:var(--pend);white-space:nowrap}
+.pill.done{background:var(--pass)}.pill.active{background:var(--acc)}.pill.ready{background:var(--mut)}
+.pill.parked{background:var(--warn)}.pill.blocked{background:var(--chg)}
+.dep{font-size:11px;color:var(--mut)}
+.ep{display:flex;gap:8px;align-items:center;font-size:12px;margin:4px 0}.ep span:first-child{width:36px}.ep .track{flex:1}.ep span:last-child{width:44px;text-align:right;color:var(--mut)}
+/* kanban */
+main{display:grid;grid-template-columns:repeat(7,minmax(160px,1fr));gap:12px;overflow-x:auto}
 .col h2{font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:var(--mut);margin:0 0 8px}
 .card{background:var(--card);border:1px solid var(--bd);border-radius:8px;padding:10px;margin-bottom:8px;cursor:pointer}
 .card.nh{border-color:var(--warn);box-shadow:0 0 0 2px color-mix(in srgb,var(--warn) 30%,transparent)}
 .card b{display:block;margin-bottom:4px}
 .badge{font-size:11px;padding:1px 6px;border-radius:99px;border:1px solid var(--bd);color:var(--mut)}
+.badge.warn{border-color:var(--warn);color:var(--warn)}
 .round{margin-top:6px;font-size:11px;color:var(--mut)}
 .chip{display:inline-block;font-size:11px;padding:1px 6px;border-radius:4px;margin:2px 2px 0 0;color:#fff;background:var(--pend)}
 .chip.PASS{background:var(--pass)}.chip.CHANGES{background:var(--chg)}
@@ -30,7 +61,16 @@ main{display:grid;grid-template-columns:repeat(7,minmax(160px,1fr));gap:12px;pad
 </head>
 <body>
 <header><h1>Software Factory</h1><span id="meta"></span></header>
-<main id="board"></main>
+<div class="wrap">
+  <div id="run" class="panel"></div>
+  <div id="inbox"></div>
+  <div class="row">
+    <div class="panel"><h2 class="sec">Backlog queue</h2><div id="backlog"></div></div>
+    <div class="panel"><h2 class="sec">Epics</h2><div id="epics"></div></div>
+  </div>
+  <h2 class="sec">Jobs</h2>
+  <main id="board"></main>
+</div>
 <div id="viewer"><div class="box"><div id="tabs"></div><pre id="content"></pre><button onclick="viewer.style.display='none'">Close</button></div></div>
 <script>
 const STAGES=["spec","build","review","triage","decision","needs-human","done"];
@@ -38,11 +78,84 @@ const REV=["security","ux","ui","code"];
 const FILES=(j)=>["spec.md","build.md","verify.md","branch.diff","decision.md",...Object.keys(j.reviews||{}).flatMap(n=>[...REV.map(r=>`round-${n}/${r}.md`),`round-${n}/triage.md`])];
 const $=id=>document.getElementById(id);
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const txt=async p=>{try{const r=await fetch(p+"?"+Date.now());return r.ok?await r.text():""}catch(e){return ""}};
+
+/* Backlog line: "- [ ] B3 [E2] Title (depends: B1, B2)". B<n> is optional; falls back to position. */
+function parseBacklog(md){
+  const items=[];
+  md.split("\n").forEach(l=>{
+    const m=l.match(/^\s*-\s*\[([ xX])\]\s*(.*)$/); if(!m) return;
+    let t=m[2], key=null, epic=null, deps=[];
+    const k=t.match(/^(B\d+)\b[:.\s-]*/i); if(k){key=k[1].toUpperCase(); t=t.slice(k[0].length)}
+    const e=t.match(/\[(E\d+)\]/i); if(e){epic=e[1].toUpperCase(); t=t.replace(e[0],"").trim()}
+    const d=t.match(/\(?depends:\s*([^)]*)\)?/i); if(d){deps=d[1].split(/[,\s]+/).filter(Boolean).map(x=>x.toUpperCase()); t=t.replace(d[0],"").trim()}
+    items.push({key:key||"B"+(items.length+1),epic,deps,title:t,checked:m[1]!==" "});
+  });
+  return items;
+}
+function classify(items,jobs){
+  const byItem={}; jobs.forEach(j=>{if(j.item) byItem[String(j.item).toUpperCase()]=j});
+  const done=new Set(items.filter(i=>i.checked).map(i=>i.key));
+  jobs.forEach(j=>{if(j.stage==="done"&&j.item) done.add(String(j.item).toUpperCase())});
+  items.forEach(i=>{
+    const j=byItem[i.key]; i.job=j||null;
+    const open=i.deps.filter(d=>!done.has(d));
+    if(done.has(i.key)) i.status="done";
+    else if(j&&j.stage==="needs-human") i.status="parked";
+    else if(j) i.status="active";
+    else if(open.length){
+      const parked=open.some(d=>byItem[d]&&byItem[d].stage==="needs-human");
+      i.status=parked?"blocked":"waiting"; i.open=open;
+    } else i.status="ready";
+  });
+  return items;
+}
+function renderRun(b,items,jobs){
+  const run=b.run||null;
+  const total=items.length, nDone=items.filter(i=>i.status==="done").length;
+  const nAct=items.filter(i=>i.status==="active").length;
+  const parked=jobs.filter(j=>j.stage==="needs-human");
+  const blocked=items.filter(i=>i.status==="blocked").length;
+  const pc=n=>total?(100*n/total).toFixed(1):0;
+  const status=run?run.status:(nAct?"running":"idle");
+  const stat=(l,v)=>`<div class="stat">${l}<b>${esc(v)}</b></div>`;
+  let h=`<div class="run"><span class="state ${esc(status)}">${esc(status)}</span>
+    ${stat("Done",nDone+" / "+total)}${stat("In flight",nAct)}${stat("Parked",parked.length)}${stat("Blocked by parked",blocked)}
+    ${run?stat("Consecutive failures",run.consecutive_failures??0):""}
+    <div class="bar"><div class="track"><i class="d" style="width:${pc(nDone)}%"></i><i class="a" style="width:${pc(nAct)}%"></i><i class="p" style="width:${pc(parked.length)}%"></i></div></div></div>`;
+  if(run&&run.stop_reason) h+=`<div class="reason"><b>Stopped:</b> ${esc(run.stop_reason)}</div>`;
+  else if(!run&&!total) h+=`<div class="reason empty">No backlog yet. Run /factory plan.</div>`;
+  else if(status==="idle"&&total) h+=`<div class="reason empty">No run active. Start one with /factory run.</div>`;
+  $("run").innerHTML=h;
+  $("run").classList.toggle("alert",status==="stopped");
+}
+function renderInbox(md,jobs){
+  const parked=jobs.filter(j=>j.stage==="needs-human");
+  const sections=md.split(/^## /m).slice(1).map(s=>{const i=s.indexOf("\n");return{h:s.slice(0,i).trim(),body:s.slice(i+1).trim()}});
+  if(!parked.length&&!sections.length){$("inbox").innerHTML="";return}
+  const list=sections.length
+    ? sections.map(s=>`<details open><summary>${esc(s.h)}</summary><pre>${esc(s.body)}</pre></details>`).join("")
+    : parked.map(j=>`<details><summary>${esc(j.id)} ${esc(j.title||"")}</summary><pre>${esc(j.parked_reason||"See decision.md or spec.md Open decisions.")}</pre></details>`).join("");
+  $("inbox").innerHTML=`<div class="panel alert"><h2 class="sec">Needs you (${parked.length})</h2>${list}
+    <div class="empty" style="margin-top:6px">Answer these in one batch with /software-factory:grill, then /factory rework &lt;id&gt; or /factory approve &lt;id&gt;.</div></div>`;
+}
+function renderBacklog(items){
+  if(!items.length){$("backlog").innerHTML='<div class="empty">—</div>';return}
+  $("backlog").innerHTML=items.map(i=>`<div class="item"><span class="pill ${i.status}">${i.status}</span>
+    <span class="t">${esc(i.key)} ${esc(i.title)}${i.epic?` <span class="badge">${esc(i.epic)}</span>`:""}${i.open&&i.open.length?` <span class="dep">needs ${esc(i.open.join(", "))}</span>`:""}</span></div>`).join("");
+}
+function renderEpics(items){
+  const eps={}; items.forEach(i=>{if(!i.epic)return;(eps[i.epic]=eps[i.epic]||{n:0,d:0});eps[i.epic].n++;if(i.status==="done")eps[i.epic].d++});
+  const ks=Object.keys(eps).sort((a,b)=>a.localeCompare(b,undefined,{numeric:true}));
+  $("epics").innerHTML=ks.length?ks.map(k=>`<div class="ep"><span>${k}</span><div class="track"><i class="d" style="width:${100*eps[k].d/eps[k].n}%"></i></div><span>${eps[k].d}/${eps[k].n}</span></div>`).join(""):'<div class="empty">No [E&lt;n&gt;] tags in the backlog.</div>';
+}
 async function load(){
   try{
-    const b=await (await fetch("board.json?"+Date.now())).json();
-    render(b.jobs||[]);
-    $("meta").textContent="Updated "+new Date().toLocaleTimeString()+" · "+(b.jobs||[]).length+" jobs";
+    const [b,bl,ib]=await Promise.all([fetch("board.json?"+Date.now()).then(r=>r.json()),txt("backlog.md"),txt("inbox.md")]);
+    const jobs=b.jobs||[];
+    const items=classify(parseBacklog(bl),jobs);
+    renderRun(b,items,jobs);renderInbox(ib,jobs);renderBacklog(items);renderEpics(items);render(jobs);
+    $("meta").textContent="Updated "+new Date().toLocaleTimeString()+" · "+jobs.length+" jobs";
   }catch(e){$("meta").textContent="Cannot load board.json (serve from factory/ with python3 -m http.server)"}
 }
 function render(jobs){
@@ -55,9 +168,9 @@ function card(j){
   const rounds=Object.entries(j.reviews||{}).map(([n,r])=>
     `<div class="round">Round ${esc(n)}: ${REV.map(k=>`<span class="chip ${esc(r[k]||"")}">${k}: ${esc(r[k]||"pending")}</span>`).join("")}${r.triage?`<span class="chip">triage: ${esc(r.triage)}</span>`:""}</div>`).join("");
   return `<div class="card ${j.stage==="needs-human"?"nh":""}" onclick='openJob(${JSON.stringify(j.id)})'>
-    <b>${esc(j.id)}</b>${esc(j.title||"")}<div><span class="badge">${esc(j.track||"?")}</span> ${j.decision?`<span class="badge">${esc(j.decision)}</span>`:""}</div>${rounds}</div>`;
+    <b>${esc(j.id)}</b>${esc(j.title||"")}<div><span class="badge">${esc(j.track||"?")}</span> ${j.decision?`<span class="badge">${esc(j.decision)}</span>`:""}
+    ${j.item?`<span class="badge">${esc(j.item)}</span>`:""}${j.assumptions?`<span class="badge warn">${esc(j.assumptions)} assumption${j.assumptions>1?"s":""}</span>`:""}</div>${j.parked_reason?`<div class="round">${esc(j.parked_reason)}</div>`:""}${rounds}</div>`;
 }
-let jobsCache=[];
 async function openJob(id){
   const b=await (await fetch("board.json?"+Date.now())).json();
   const j=b.jobs.find(x=>x.id===id);

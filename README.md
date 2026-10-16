@@ -21,6 +21,7 @@ In any project:
 /software-factory:brainstorm [topic]                    # vague idea? generate options, then narrow with MoSCoW
 /software-factory:grill [topic]                         # stress-test any idea, plan or spec (bundled, no other plugin needed)
 /software-factory:factory next | status | retro
+/software-factory:factory run [--max-jobs N]             # drain the backlog autonomously; parks jobs that need a human, batches the questions in factory/inbox.md
 /software-factory:factory approve <id> | rework <id> <note>
 ```
 `init` creates `factory/` (board, backlog, learnings, dashboard, `userguide.html`) and appends a project-context block to `CLAUDE.md`. It never overwrites existing files and is safe to re-run.
