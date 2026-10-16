@@ -36,6 +36,7 @@ In any project:
 | `skills/brainstorm/SKILL.md` | Facilitator-style brainstorming and MoSCoW narrowing, condensed from BMAD's brainstorming |
 | `agents/` | planner, spec-writer, builder, reviewer-security/ux/ui/code, triager, approver, retro |
 | `templates/` | Files copied into the project by `init` |
+| `docs/upgradepath.html` | Upgrading a part-built project from an older plugin version and resuming |
 
 Read [`docs/userguide.html`](docs/userguide.html) for walkthroughs: a vague idea through to a shipped product, adding features to existing code, a single small change, and a large capability split into jobs. `init` also copies a shorter guide to `factory/userguide.html` in the project.
 

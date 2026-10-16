@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Software Factory Upgrade Path</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--fg:#1c2330;--mut:#5f6877;--bd:#dde1e8;--acc:#3b5bdb;--pass:#1a7f4b;--chg:#c0392b;--warn:#b7791f;--code:#eef0f4}
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]){--bg:#12151b;--card:#1a1f28;--fg:#e6e9ef;--mut:#9aa3b2;--bd:#2a313d;--acc:#8aa0f7;--pass:#4cc38a;--chg:#ef6b5e;--warn:#e0a84a;--code:#232a35}}
+:root[data-theme=dark]{--bg:#12151b;--card:#1a1f28;--fg:#e6e9ef;--mut:#9aa3b2;--bd:#2a313d;--acc:#8aa0f7;--pass:#4cc38a;--chg:#ef6b5e;--warn:#e0a84a;--code:#232a35}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.6 system-ui,sans-serif}
+.wrap{max-width:880px;margin:0 auto;padding:0 16px 64px}
+header{padding:32px 0 8px}
+h1{font-size:28px;margin:0 0 4px}
+h2{font-size:21px;margin:40px 0 8px;padding-top:10px;border-top:1px solid var(--bd)}
+h3{font-size:16px;margin:22px 0 4px}
+.lead{color:var(--mut);margin:0}
+nav{display:flex;flex-wrap:wrap;gap:8px;margin:16px 0}
+nav a{font-size:13px;padding:4px 10px;border:1px solid var(--bd);border-radius:99px;color:var(--acc);text-decoration:none;background:var(--card)}
+code{background:var(--code);padding:1px 5px;border-radius:4px;font-size:.88em}
+pre{background:var(--code);padding:12px;border-radius:8px;overflow-x:auto;font-size:12.5px;line-height:1.5}
+pre code{background:none;padding:0}
+table{border-collapse:collapse;width:100%;font-size:13px;display:block;overflow-x:auto}
+th,td{border:1px solid var(--bd);padding:5px 9px;text-align:left;vertical-align:top}
+th{background:var(--code);white-space:nowrap}
+.callout{border-left:4px solid var(--acc);background:var(--card);padding:8px 14px;border-radius:0 8px 8px 0;margin:12px 0}
+.callout.warn{border-color:var(--warn)}.callout.bad{border-color:var(--chg)}.callout.ok{border-color:var(--pass)}
+ol>li,ul>li{margin:6px 0}
+.pill{display:inline-block;font-size:11px;padding:0 7px;border-radius:99px;border:1px solid var(--bd);background:var(--card);color:var(--mut)}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <h1>Upgrade path</h1>
+  <p class="lead">Moving a project that is already part-built from an older <code>software-factory</code> plugin (for example 1.3.x) to 1.5.0, and carrying on where you left off. Worked example: 54 backlog items, 5 built.</p>
+</header>
+<nav>
+  <a href="#why">Why it works</a><a href="#checks">1 Pre-flight</a><a href="#plugin">2 Upgrade the plugin</a><a href="#files">3 Refresh project files</a><a href="#deps">4 Add dependencies</a><a href="#first">5 First run</a><a href="#resume">Resuming by state</a><a href="#rollback">Rollback</a><a href="#risks">Risks</a>
+</nav>
+
+<h2 id="why">Why an upgrade does not break a project in progress</h2>
+<p>All state lives in your project, not in the plugin: <code>factory/board.json</code>, <code>backlog.md</code>, <code>learnings.md</code>, <code>factory/jobs/&lt;id&gt;/…</code>, <code>docs/…</code>, and the job branches in git. The plugin supplies only the instructions (skills and agents). Every field added since 1.3.6 is optional, so an old <code>board.json</code> is valid as it stands and needs no migration. Old backlog lines such as <code>- [ ] [E1] text</code> keep working: they get positional ids and no dependencies.</p>
+<table>
+  <tr><th>Version</th><th>What changed</th><th>What it needs from an existing project</th></tr>
+  <tr><td>1.4.0</td><td><code>/factory run</code>, headless specs, parking into <code>inbox.md</code>, <code>B&lt;n&gt;</code> ids and <code>depends:</code>, dashboard run panels</td><td>Nothing mandatory. Add ids and dependencies to the backlog to make <code>run</code> safe (step 4). Refresh the dashboard file.</td></tr>
+  <tr><td>1.4.1</td><td>Default branch re-checked after every agent; reviewers read-only on git; patch-round spec amendments; backlog ticked only on merge</td><td>Nothing</td></tr>
+  <tr><td>1.4.2</td><td>Verification from <code>git archive</code> instead of <code>git switch</code></td><td>Nothing</td></tr>
+  <tr><td>1.5.0</td><td>Dashboard actions: <code>inbox.json</code>, <code>server.py</code>, <code>/factory apply</code></td><td>Copy <code>dashboard.html</code> and <code>server.py</code> into <code>factory/</code> (step 3)</td></tr>
+</table>
+
+<h2 id="checks">1. Pre-flight (before touching anything)</h2>
+<ol>
+  <li>Let any running agent finish, or stop it.</li>
+  <li>Commit or stash everything outside <code>factory/</code>, <code>docs/</code> and <code>CLAUDE.md</code>, and check out your default branch. Builders often leave the job branch checked out, and the preflight refuses to start otherwise.</li>
+  <li>Back up the state: <pre><code>cp -r factory factory.bak</code></pre></li>
+  <li>Confirm nothing is half-done. Every job in <code>factory/board.json</code> should be <code>done</code> or <code>needs-human</code>. Anything in <code>spec</code>, <code>build</code>, <code>review</code>, <code>triage</code> or <code>decision</code> was caught mid-flight; see <a href="#resume">Resuming by state</a>.</li>
+  <li>Check that the done jobs and the ticked backlog lines agree. The old <code>next</code> ticked a line when a job <i>started</i>, so a <code>[x]</code> line whose job is not <code>done</code> is a stuck job. Fix it before going on.</li>
+</ol>
+
+<h2 id="plugin">2. Upgrade the plugin</h2>
+<ol>
+  <li>Open <code>/plugin</code>, go to <b>Installed</b>, and update <code>software-factory</code>. If no newer version is offered, refresh the marketplace first (<code>/plugin marketplace update software-factory</code>). Go by what the menu shows; these exact update commands were not tested for this document.</li>
+  <li>Restart Claude Code. Skills load when a session starts.</li>
+  <li>Confirm the version: <pre><code>grep -A3 software-factory ~/.claude/plugins/installed_plugins.json</code></pre> The <code>installPath</code> should end in <code>1.5.0</code> (it ended in <code>1.3.6</code> before).</li>
+</ol>
+
+<h2 id="files">3. Refresh the project files</h2>
+<p><code>/software-factory:init</code> never overwrites existing files, so your project keeps the old dashboard until you copy the new files over. Find the plugin folder with <code>find ~/.claude/plugins -type d -path '*software-factory*/templates/factory'</code>, then:</p>
+<pre><code>cp &lt;plugin&gt;/templates/factory/dashboard.html  factory/
+cp &lt;plugin&gt;/templates/factory/server.py       factory/
+cp &lt;plugin&gt;/templates/factory/userguide.html  factory/</code></pre>
+<table>
+  <tr><th>File</th><th>Action</th></tr>
+  <tr><td><code>dashboard.html</code>, <code>server.py</code>, <code>userguide.html</code></td><td>Copy from the plugin</td></tr>
+  <tr><td><code>board.json</code>, <code>backlog.md</code>, <code>learnings.md</code>, <code>jobs/</code></td><td>Leave alone. These are your state.</td></tr>
+  <tr><td><code>inbox.md</code>, <code>inbox.json</code>, <code>actions.jsonl</code>, <code>actions-applied.json</code></td><td>Do not create. The orchestrator and the server create them when needed.</td></tr>
+</table>
+
+<h2 id="deps">4. Add dependencies to the backlog (the step that matters for a long backlog)</h2>
+<p>Your backlog lines have no ids and no prerequisites, so <code>/factory run</code> treats every item as independent. If item 12 is parked for a human and item 13 really needs it, the run would still build 13 on a base that does not exist. Annotate the backlog first.</p>
+<div class="callout warn"><b>Do not re-run the planner for this.</b> Planner Pass 3 regenerates the backlog. Ask Claude in an ordinary session to edit <code>backlog.md</code> in place.</div>
+<pre><code>Edit factory/backlog.md only. Give each line an id B1..B54 in order (keep the lines that are
+already [x] exactly as they are). Add "(depends: B..)" only where an item truly cannot be built
+or tested without another; use docs/epics.md and docs/architecture.md to decide. Do not change
+any wording or any checkbox. Then list the dependencies you added so I can review them.</code></pre>
+<p>Read the result before accepting it:</p>
+<ul>
+  <li>Too few links is risky: a parked job will not stop items that need it.</li>
+  <li>Too many links is wasteful: one parked job then blocks everything after it. Independent items should not be chained.</li>
+  <li>Dependencies must point to earlier ids and must not form a cycle.</li>
+</ul>
+<p>If you skip this step, use <code>/software-factory:factory next</code> one job at a time instead of <code>run</code>.</p>
+
+<h2 id="first">5. First run with the new features</h2>
+<ol>
+  <li><b>Start the dashboard.</b> Stop any old <code>python3 -m http.server</code> first, then:
+    <pre><code>python3 factory/server.py</code></pre>
+    Open the exact URL it prints, including the <code>#t=…</code> part; that token is what lets the page queue actions. It listens on 127.0.0.1 only and tries ports 8000 to 8020.</li>
+  <li><b>Start small.</b> Do not begin with all remaining items:
+    <pre><code>/software-factory:factory run --max-jobs 3</code></pre>
+    Each job can spawn up to eight agent runs per round, so a full run is large. Watch the dashboard: the banner shows the run state, and parked jobs appear under <b>Needs you</b>.</li>
+  <li><b>Answer parked jobs.</b> Pick an option (the recommended one is highlighted) and submit. A click only <i>queues</i> the action. Then, in your Claude session:
+    <pre><code>/software-factory:factory apply</code></pre>
+    Apply re-checks each action against the board, re-runs the tests from a clean copy of the branch before any merge, and records the result under <b>Recent actions</b>.</li>
+  <li><b>Continue</b> with <code>/software-factory:factory run resume</code>, or with a larger <code>--max-jobs</code>.</li>
+</ol>
+<table>
+  <tr><th>Flag</th><th>Use it to</th></tr>
+  <tr><td><code>--max-jobs N</code></td><td>Cap how many jobs one run starts</td></tr>
+  <tr><td><code>--until E2</code> or <code>--until B20</code></td><td>Stop at an epic or item boundary</td></tr>
+  <tr><td><code>--budget &lt;minutes&gt;</code></td><td>Cap wall-clock time</td></tr>
+</table>
+<p>The run stops by itself when nothing is ready, when a limit is reached, when two jobs in a row are parked (usually one systemic problem), or when the default branch fails its tests after a merge.</p>
+
+<h2 id="resume">Resuming by state</h2>
+<table>
+  <tr><th>Where it stopped</th><th>How to resume</th></tr>
+  <tr><td>Planning (<code>plan.status</code> in <code>board.json</code>)</td><td><code>/software-factory:factory plan</code> with no vision. It continues from the board and keeps approved passes.</td></tr>
+  <tr><td>A job in <code>needs-human</code></td><td><code>/software-factory:factory approve &lt;id&gt;</code> or <code>rework &lt;id&gt; &lt;note&gt;</code>, or click it on the dashboard and run <code>apply</code>.</td></tr>
+  <tr><td>Between jobs (nothing in flight)</td><td><code>/software-factory:factory next</code>, or <code>run</code> to drain the rest.</td></tr>
+  <tr><td>A run that was stopped or crashed</td><td><code>/software-factory:factory run resume</code> (state is read from <code>board.json</code> <code>run</code> and the backlog).</td></tr>
+  <tr><td><b>Mid-job</b> (stage <code>spec</code>, <code>build</code>, <code>review</code>, <code>triage</code> or <code>decision</code>)</td><td><b>No automatic resume.</b> See below.</td></tr>
+</table>
+<h3>Recovering a job caught mid-stage (manual)</h3>
+<p>Look in <code>factory/jobs/&lt;id&gt;/</code> to see how far it got:</p>
+<ul>
+  <li>Only <code>spec.md</code>: the build had not started.</li>
+  <li><code>build.md</code> present: the code is committed on <code>factory/&lt;id&gt;</code>.</li>
+  <li>A <code>round-N/</code> folder with fewer review files than expected: the round was incomplete.</li>
+</ul>
+<p>The simplest safe route: set the job's <code>stage</code> to <code>needs-human</code> in <code>board.json</code> (while no session is running), commit that, then run <code>/software-factory:factory rework &lt;id&gt; &lt;note&gt;</code>. That sends the job back to the builder with a fresh review round. Every subagent run starts clean from files, so redoing a step loses nothing.</p>
+
+<h2 id="rollback">Rollback</h2>
+<ol>
+  <li>Stop <code>server.py</code> and any session.</li>
+  <li>Restore the state: <code>rm -rf factory &amp;&amp; mv factory.bak factory</code>.</li>
+  <li>Reinstall the older plugin version if you need the old behavior, then restart Claude Code.</li>
+  <li>Job branches and merges already made are ordinary git history; revert them with git if needed.</li>
+</ol>
+
+<h2 id="risks">Known gaps and risks</h2>
+<div class="callout warn">The upgrade itself, and recovery from a crash mid-run, were not tested on a real in-flight project. The loop, parking, dependency skipping, approve-after-answer and the dashboard actions were exercised in a sandbox. Start with <code>--max-jobs 3</code> and compare against your expectations.</div>
+<ul>
+  <li>Run isolation (a fresh sub-orchestrator per job), the stop after two parked jobs in a row, and the per-epic retro are not yet exercised (limitation L15 in the architecture document).</li>
+  <li>Dashboard clicks only queue actions; nothing happens until you run <code>/factory apply</code> (L13).</li>
+  <li>Edit <code>board.json</code> and <code>backlog.md</code> only between runs. The orchestrator is the only writer of <code>board.json</code> while a session is active.</li>
+  <li>The old dashboard will not show the new panels until step 3 is done.</li>
+</ul>
+<p>Related: <a href="userguide.html">User guide</a> · <a href="factoryarchitecture.html">Architecture</a></p>
+</div>
+</body>
+</html>
