@@ -1,6 +1,10 @@
 {
   "version": 1,
   "default_branch": null,
-  "run": null,
-  "jobs": []
+  "jobs": [],
+  "retro": {
+    "done_since": 0,
+    "last": null
+  },
+  "run": null
 }

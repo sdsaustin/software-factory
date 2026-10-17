@@ -225,8 +225,9 @@ claude
   <tr><td>A limit you set is reached</td><td><code>--max-jobs</code>, <code>--budget</code>, <code>--until</code></td></tr>
   <tr><td>Two jobs in a row were parked</td><td>Usually one systemic problem (a bad decision, a flaky test command), not two bad jobs</td></tr>
   <tr><td>The default branch fails its tests after a merge</td><td>Everything built next would sit on a broken base</td></tr>
+  <tr><td>A merge was refused by your permission settings</td><td>Every later merge would be refused too. The job is parked as <code>MERGE BLOCKED</code>; approve it from the dashboard (or <code>/factory approve &lt;id&gt;</code>) and the factory merges it</td></tr>
 </table>
-<p>A run never pushes and never merges into a protected default branch; those jobs are parked as <code>NEEDS PR</code>.</p>
+<p>The background job for each item stops once the approver approves; the run itself, in your session, does the merge. A run never pushes and never merges into a protected default branch; those jobs are parked as <code>NEEDS PR</code>.</p>
 <h3 id="clicks">Answer from the dashboard</h3>
 <p>Each parked job appears in the dashboard’s <b>Needs you</b> panel with its question and the options, the recommended one highlighted. Pick an option (or use <b>Use recommendations</b>), add a note if you like, and submit. Approving asks for one more confirmation. The click is only <b>queued</b>; nothing runs until you tell the factory in your Claude session:</p>
 <pre><code>&gt; /software-factory:factory apply</code></pre>

@@ -162,7 +162,9 @@ function renderRun(b,items,jobs){
     ${stat("Done",nDone+" / "+total)}${stat("In flight",nAct)}${stat("Parked",parked.length)}${stat("Blocked by parked",blocked)}
     ${run?stat("Consecutive failures",run.consecutive_failures??0):""}
     <div class="bar"><div class="track"><i class="d" style="width:${pc(nDone)}%"></i><i class="a" style="width:${pc(nAct)}%"></i><i class="p" style="width:${pc(parked.length)}%"></i></div></div></div>`;
+  const plan=b.plan&&b.plan.status!=="done"?b.plan:null;
   if(run&&run.stop_reason) h+=`<div class="reason"><b>Stopped:</b> ${esc(run.stop_reason)}</div>`;
+  else if(plan) h+=`<div class="reason empty"><b>Planning:</b> pass ${esc(plan.pass)} of 3 (${esc(String(plan.status).replace(/-/g," "))}). Continue with /factory plan.</div>`;
   else if(!run&&!total) h+=`<div class="reason empty">No backlog yet. Run /factory plan.</div>`;
   else if(status==="idle"&&total) h+=`<div class="reason empty">No run active. Start one with /factory run.</div>`;
   h+=runExtras(run);$("run").innerHTML=h;

@@ -35,7 +35,7 @@ Keep an append-only log at the path the caller names (default `docs/grill-log.md
 The session is done when the frontier is empty: every branch of the design tree visited, nothing left silently assumed. Then:
 1. **Mirror first.** Reflect the settled decisions back in a short list and ask what the user sees now, what feels wrong, what is missing. Let them react before you add anything.
 2. **Then connect.** Point out contradictions or tensions between answers (for example single-tenant against sold to many customers), decisions that quietly constrain others, and anything still assumed.
-3. **Write the intent doc** at the path the caller names (default `docs/intent.md`): a succinct brief, no report bloat, with sections Goal, Decisions (grouped, each with its D-number), Out of scope, Risks, Still open. It must be usable as direct input to the next stage (the factory planner or a spec-writer).
+3. **Write the intent doc** at the path the caller names (default `docs/intent.md`): a succinct brief, no report bloat, with sections Goal, Decisions (grouped, each with its D-number), Out of scope, Risks, Still open. It must be usable as direct input to the next stage (the factory planner or a spec-writer). If the intent doc already exists (for example a brainstorm's MoSCoW split), update it instead of replacing it: keep its sections, add yours, and mark every line your decisions changed with the D-number that changed it.
 4. Set the log `status: complete`. Do not act on the result until the user confirms the shared understanding.
 
 ## Headless mode
