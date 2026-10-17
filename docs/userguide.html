@@ -87,6 +87,7 @@ ol.story>li{margin:10px 0}
 <pre><code>/software-factory:init</code></pre>
 <p>Init creates <code>factory/</code> (board, backlog, learnings, a live dashboard and a shorter in-project guide) and appends a project-context block to <code>CLAUDE.md</code>. It never overwrites a file that already exists, and it never renames your git branch. Re-running it is safe.</p>
 <p>If the folder is not a git repo yet, init creates one on <code>main</code>. If it already is a repo, init records whatever the default branch is called (<code>main</code>, <code>master</code>, <code>develop</code>, <code>trunk</code>) as <code>default_branch</code> in <code>factory/board.json</code>. Jobs branch from that branch and merge back into it.</p>
+<p>Init then asks whether the factory may merge approved jobs in this project. Say yes, and it adds one permission rule, <code>Bash(git merge --no-ff factory/*)</code>, to <code>.claude/settings.local.json</code>. Without it, Claude Code's permission check (auto mode in particular) can refuse a run's merge, and every approved job then waits for your click. The rule covers only factory job branches, and a merge still needs an approval and passing tests.</p>
 <div class="callout warn"><b>Before a job.</b> Be on the default branch, and have no uncommitted changes outside <code>factory/</code>, <code>docs/</code> and <code>CLAUDE.md</code>. Planning, documenting, status and retros do not need a clean tree.</div>
 
 <h2 id="paths">3. Pick a path</h2>
@@ -225,7 +226,7 @@ claude
   <tr><td>A limit you set is reached</td><td><code>--max-jobs</code>, <code>--budget</code>, <code>--until</code></td></tr>
   <tr><td>Two jobs in a row were parked</td><td>Usually one systemic problem (a bad decision, a flaky test command), not two bad jobs</td></tr>
   <tr><td>The default branch fails its tests after a merge</td><td>Everything built next would sit on a broken base</td></tr>
-  <tr><td>A merge was refused by your permission settings</td><td>Every later merge would be refused too. The job is parked as <code>MERGE BLOCKED</code>; approve it from the dashboard (or <code>/factory approve &lt;id&gt;</code>) and the factory merges it</td></tr>
+  <tr><td>A merge was refused by your permission settings</td><td>Every later merge would be refused too. The job is parked as <code>MERGE BLOCKED</code>; approve it from the dashboard (or <code>/factory approve &lt;id&gt;</code>) and the factory merges it. To prevent it, say yes when <code>/software-factory:init</code> offers the merge permission (<code>Bash(git merge --no-ff factory/*)</code>)</td></tr>
 </table>
 <p>The background job for each item stops once the approver approves; the run itself, in your session, does the merge. A run never pushes and never merges into a protected default branch; those jobs are parked as <code>NEEDS PR</code>.</p>
 <h3 id="clicks">Answer from the dashboard</h3>
