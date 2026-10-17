@@ -1,2 +1,4 @@
 .DS_Store
 .closedloop-ai/
+__pycache__/
+*.pyc
