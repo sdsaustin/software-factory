@@ -84,11 +84,11 @@ svg .h{font-weight:600;font-size:12.5px}
 <main>
 <header>
   <h1>Factory Architecture</h1>
-  <p class="lead">Maintainer's reference for the <code>software-factory</code> Claude Code plugin (v1.3.x): what each part is, what it reads and writes, and how the parts collaborate. For how to use the factory, see <a href="userguide.html">the user guide</a> (also copied to <code>factory/userguide.html</code> when a project is initialized).</p>
+  <p class="lead">Maintainer's reference for the <code>software-factory</code> Claude Code plugin (v1.6.x): what each part is, what it reads and writes, and how the parts collaborate. For how to use the factory, see <a href="userguide.html">the user guide</a> (also copied to <code>factory/userguide.html</code> when a project is initialized).</p>
 </header>
 
 <h2 id="overview">1. Overview</h2>
-<p>The factory is a <b>prompt-defined multi-agent system</b>. There is no server and no application code in the plugin: everything is markdown instructions (skills and agents), a few templates, and two JSON manifests. Claude Code is the runtime. One <b>orchestrator</b> skill runs in the user's main session and spawns <b>subagents</b> that each do one job and write one file. State between steps lives in plain files in the user's project, so any step can be inspected, edited or re-run by a human.</p>
+<p>The factory is a <b>prompt-defined multi-agent system</b>. There is no daemon and almost no application code in the plugin: everything is markdown instructions (skills and agents), a few templates (including the optional stdlib-only dashboard server <code>server.py</code>), and two JSON manifests. Claude Code is the runtime. One <b>orchestrator</b> skill runs in the user's main session and spawns <b>subagents</b> that each do one job and write one file. State between steps lives in plain files in the user's project, so any step can be inspected, edited or re-run by a human.</p>
 <div class="grid2">
 <div class="callout"><b>Two audiences</b><br>Users run slash commands in their project. Maintainers (you) edit the plugin repo. Behavior changes by editing prompts, so most "bugs" are prompt bugs and are fixed in <code>skills/*/SKILL.md</code> or <code>agents/*.md</code>.</div>
 <div class="callout warn"><b>Key caveat</b><br>Most rules ("an agent writes only its own file", "only the orchestrator writes board.json") are <i>conventions in prompts</i>, not enforced by permissions. See <a href="#limits">Known limitations</a>.</div>
@@ -129,7 +129,8 @@ svg .h{font-weight:600;font-size:12.5px}
 │  └─ factory/             board.json  backlog.md  learnings.md  dashboard.html  server.py  userguide.html
 ├─ docs/
 │  ├─ factoryarchitecture.html   this document
-│  └─ userguide.html             how to use the factory (scenarios)
+│  ├─ userguide.html             how to use the factory (skills, scenarios)
+│  └─ upgradepath.html           moving a part-built project to a newer plugin version
 ├─ NOTICE                  MIT attribution for the grill skill
 ├─ README.md  .gitignore
 </code></pre>
@@ -184,7 +185,7 @@ svg .h{font-weight:600;font-size:12.5px}
   <rect class="box" x="845" y="302" width="190" height="52" rx="7" style="fill:var(--card)"/><text class="h" x="940" y="322" text-anchor="middle">git</text><text class="t2" x="940" y="338" text-anchor="middle">default branch + factory/&lt;id&gt;</text>
   <rect class="box" x="845" y="364" width="190" height="44" rx="7" style="fill:var(--card)"/><text class="h" x="940" y="382" text-anchor="middle">source code + tests</text>
   <!-- dashboard -->
-  <rect class="box" x="830" y="450" width="220" height="70" rx="10" style="fill:var(--c3)"/><text class="h" x="940" y="474" text-anchor="middle">Browser dashboard</text><text class="t2" x="940" y="492" text-anchor="middle">polls board.json every 3s</text><text class="t2" x="940" y="506" text-anchor="middle">python3 -m http.server</text>
+  <rect class="box" x="830" y="450" width="220" height="70" rx="10" style="fill:var(--c3)"/><text class="h" x="940" y="474" text-anchor="middle">Browser dashboard</text><text class="t2" x="940" y="492" text-anchor="middle">polls board.json every 3s</text><text class="t2" x="940" y="506" text-anchor="middle">python3 factory/server.py</text>
   <!-- plugin -->
   <rect class="box dash" x="170" y="470" width="270" height="55" rx="8" style="fill:none"/><text class="h" x="305" y="492" text-anchor="middle">Plugin cache (read-only)</text><text class="t2" x="305" y="508" text-anchor="middle">templates/ read only by init</text>
   <!-- arrows -->
@@ -201,9 +202,9 @@ svg .h{font-weight:600;font-size:12.5px}
 <h3 id="skills">6.1 Skills</h3>
 <table>
 <tr><th>Skill</th><th>File</th><th>Invocation</th><th>Responsibility</th></tr>
-<tr><td><b>factory</b></td><td><code>skills/factory/SKILL.md</code></td><td><code>/software-factory:factory &lt;args&gt;</code></td><td>Orchestrator. Sections: Plugin notes · Commands · board.json · Preflight · Loop · Plan command · Document command · approve/rework/retro · Rules. Spawns every agent, invokes grill/brainstorm, owns <code>board.json</code>, performs merges and state commits.</td></tr>
-<tr><td><b>init</b></td><td><code>skills/init/SKILL.md</code></td><td><code>/software-factory:init</code> (<code>disable-model-invocation: true</code>)</td><td>Detect/record default branch, create <code>factory/</code> from templates (no overwrite), append project-context block to <code>CLAUDE.md</code> (marker-guarded), ensure <code>.DS_Store</code> in <code>.gitignore</code>, detect test/lint/build for existing code, recommend next step, offer commit.</td></tr>
-<tr><td><b>grill</b></td><td><code>skills/grill/SKILL.md</code></td><td><code>/software-factory:grill [topic]</code> or via Skill tool</td><td>Design-tree interview in rounds. <code>[recommend]</code> vs <code>[open]</code> question tags. Append-only decision log, mirror-then-connect wrap-up, intent doc, headless mode (assumed answers, <code>partial</code> when OPEN remain).</td></tr>
+<tr><td><b>factory</b></td><td><code>skills/factory/SKILL.md</code></td><td><code>/software-factory:factory &lt;args&gt;</code></td><td>Orchestrator. Sections: Plugin notes · Commands · board.json · Preflight · Loop · Run command · Apply command · Plan command · Document command · approve/rework/retro · Rules. Spawns every agent, invokes grill/brainstorm, owns <code>board.json</code> and the inbox, performs merges and state commits.</td></tr>
+<tr><td><b>init</b></td><td><code>skills/init/SKILL.md</code></td><td><code>/software-factory:init</code> (<code>disable-model-invocation: true</code>)</td><td>Detect/record default branch, create <code>factory/</code> from templates (no overwrite), append project-context block to <code>CLAUDE.md</code> (marker-guarded), ensure <code>.DS_Store</code> in <code>.gitignore</code>, detect test/lint/build for existing code, ask (once, consent required) whether to add the merge rule <code>Bash(git merge --no-ff factory/*)</code> to <code>.claude/settings.local.json</code>, recommend next step, offer commit.</td></tr>
+<tr><td><b>grill</b></td><td><code>skills/grill/SKILL.md</code></td><td><code>/software-factory:grill [topic]</code> or via Skill tool</td><td>Design-tree interview in rounds. <code>[recommend]</code> vs <code>[open]</code> question tags. Append-only decision log, mirror-then-connect wrap-up, intent doc (updates an existing brainstorm <code>intent.md</code>, tagging changed lines with D-numbers), headless mode (assumed answers, <code>partial</code> when OPEN remain).</td></tr>
 <tr><td><b>brainstorm</b></td><td><code>skills/brainstorm/SKILL.md</code></td><td><code>/software-factory:brainstorm [topic]</code> or via Skill tool</td><td>Facilitator-style divergence (no ideas supplied by the coach), 3–4 techniques, separate convergence phase (MoSCoW default), log + <code>docs/intent.md</code>.</td></tr>
 </table>
 <h3 id="agents">6.2 Agents</h3>
@@ -214,8 +215,8 @@ svg .h{font-weight:600;font-size:12.5px}
 <tr><td><b>spec-writer</b></td><td class="opus">opus</td><td>Read Glob Grep Bash Write</td><td><code>jobs/&lt;id&gt;/spec.md</code></td><td>Sections incl. <code>Track: quick|full</code>, numbered ACs, Baseline, Open decisions, Red-team notes (full only)</td><td>job step 1</td></tr>
 <tr><td><b>builder</b></td><td class="opus">opus</td><td>Read Glob Grep Bash Write Edit</td><td>product code + tests on <code>factory/&lt;id&gt;</code>; <code>jobs/&lt;id&gt;/build.md</code></td><td>AC→evidence table, SHAs; later rounds append <code>## Round N</code></td><td>job step 3; resumed via SendMessage</td></tr>
 <tr><td><b>reviewer-security</b></td><td class="opus">opus</td><td>Read Glob Grep Bash Write</td><td><code>round-N/security.md</code></td><td>line 1 <code>VERDICT: PASS|CHANGES</code></td><td>job step 4</td></tr>
-<tr><td><b>reviewer-ux</b></td><td class="sonnet">sonnet</td><td>same</td><td><code>round-N/ux.md</code></td><td>VERDICT; <code>N/A: reason</code> allowed</td><td>step 4 (full only)</td></tr>
-<tr><td><b>reviewer-ui</b></td><td class="sonnet">sonnet</td><td>same</td><td><code>round-N/ui.md</code></td><td>VERDICT; <code>N/A</code> allowed</td><td>step 4 (full only)</td></tr>
+<tr><td><b>reviewer-ux</b></td><td class="sonnet">sonnet</td><td>same</td><td><code>round-N/ux.md</code></td><td>VERDICT; <code>N/A: reason</code> allowed</td><td>step 4 (full, unless skipped; quick if <code>Extra reviewers</code>)</td></tr>
+<tr><td><b>reviewer-ui</b></td><td class="sonnet">sonnet</td><td>same</td><td><code>round-N/ui.md</code></td><td>VERDICT; <code>N/A</code> allowed</td><td>step 4 (full, unless skipped; quick if <code>Extra reviewers</code>)</td></tr>
 <tr><td><b>reviewer-code</b></td><td class="sonnet">sonnet</td><td>same</td><td><code>round-N/code.md</code></td><td>VERDICT; re-runs tests</td><td>step 4</td></tr>
 <tr><td><b>triager</b></td><td class="sonnet">sonnet</td><td>Read Glob Grep Bash Write</td><td><code>round-N/triage.md</code></td><td>line 1 <code>TRIAGE: CLEAN|PATCH|DECISION</code>, then table reviewer|file:line|severity|route|reason</td><td>step 5</td></tr>
 <tr><td><b>approver</b></td><td class="opus">opus</td><td>Read Glob Grep Bash Write</td><td><code>jobs/&lt;id&gt;/decision.md</code></td><td>line 1 <code>APPROVE|ESCALATE</code>; never merges; relies on <code>verify.md</code>, so a denied shell is not grounds to escalate</td><td>step 6</td></tr>
@@ -227,9 +228,9 @@ svg .h{font-weight:600;font-size:12.5px}
 <tr><td><code>templates/factory/board.json</code></td><td><code>factory/board.json</code></td><td><code>{"version":1,"default_branch":null,"jobs":[]}</code>; <code>init</code> fills <code>default_branch</code>.</td></tr>
 <tr><td><code>templates/factory/backlog.md</code></td><td><code>factory/backlog.md</code></td><td>Queue; lines <code>- [ ] B1 [E1] text (depends: B0)</code>. <code>B&lt;n&gt;</code> ids and <code>depends:</code> are written by the planner; <code>/factory next</code> and <code>run</code> pick the first <b>ready</b> item.</td></tr>
 <tr><td><code>templates/factory/learnings.md</code></td><td><code>factory/learnings.md</code></td><td>Append-only lessons; read by all agents.</td></tr>
-<tr><td><code>templates/factory/dashboard.html</code></td><td><code>factory/dashboard.html</code></td><td>Self-contained board. Columns = stages; chips from <code>reviews</code>; click-through to job files; polls every 3 s. Also renders the run banner, the <b>Needs you</b> inbox with clickable options, the backlog queue (ready/blocked/parked) and epic progress, and queues human actions through <code>server.py</code> (falls back to copy-the-command when the server or token is missing). Does <b>not</b> show <code>plan</code>/<code>document</code> state.</td></tr>
+<tr><td><code>templates/factory/dashboard.html</code></td><td><code>factory/dashboard.html</code></td><td>Self-contained board (with a built-in Markdown viewer for job files). Columns = stages; chips from <code>reviews</code>; click-through to job files; polls every 3 s. Also renders the run banner, the <b>Needs you</b> inbox with clickable options, the backlog queue (ready/blocked/parked) and epic progress and planning progress, and queues human actions through <code>server.py</code> (falls back to copy-the-command when the server or token is missing). Does <b>not</b> show <code>document</code> state.</td></tr>
 <tr><td><code>templates/factory/server.py</code></td><td><code>factory/server.py</code></td><td>Stdlib-only local server (127.0.0.1). Serves <code>factory/</code> and accepts one write, <code>POST /api/action</code>, which appends a validated action to <code>actions.jsonl</code>. Never touches <code>board.json</code>. See §8.8.</td></tr>
-<tr><td><code>templates/factory/userguide.html</code></td><td><code>factory/userguide.html</code></td><td>End-user guide with workflows A (idea) and B (existing code).</td></tr>
+<tr><td><code>templates/factory/userguide.html</code></td><td><code>factory/userguide.html</code></td><td>Shorter end-user guide: the four skills, workflows A (idea) and B (existing code), commands, files.</td></tr>
 <tr><td><code>templates/project-context.md</code></td><td>appended to <code>CLAUDE.md</code></td><td>Contains marker <code>software-factory:project-context</code>; sections Policy · Running the project · Non-default conventions · Observed pitfalls · Software factory.</td></tr>
 </table>
 
@@ -251,6 +252,7 @@ docs/                              created by plan / document / grill / brainsto
 factory/
   board.json  backlog.md  learnings.md  dashboard.html  server.py  userguide.html
   retro-proposal.md
+  followups.md                     out-of-scope issues, once each, with the jobs that raised them (orchestrator)
   inbox.md  inbox.json             parked jobs awaiting a human            (orchestrator, during run)
   actions.jsonl                    clicks queued from the dashboard        (server.py only, append-only)
   actions-applied.json             result of each applied action           (orchestrator only)
@@ -267,11 +269,13 @@ factory/
 <tr><td><code>factory/board.json</code></td><td>orchestrator</td><td>agents: read <code>default_branch</code> only</td></tr>
 <tr><td><code>factory/backlog.md</code></td><td>human; orchestrator ticks items; planner PASS 3 writes it</td><td>—</td></tr>
 <tr><td><code>factory/learnings.md</code></td><td>orchestrator (appends from retro)</td><td>—</td></tr>
+<tr><td><code>factory/followups.md</code></td><td>orchestrator (collects reviewer and approver follow-ups, closes fixed ones)</td><td>human may delete or promote lines; spec-writer reads it</td></tr>
+<tr><td><code>docs/brainstorm-log.md</code> <code>docs/grill-log.md</code> <code>docs/intent.md</code></td><td>brainstorm / grill (logs append-only)</td><td>planner reads; grill updates a brainstorm <code>intent.md</code> in place</td></tr>
 <tr><td><code>CLAUDE.md</code></td><td>human; orchestrator applies approved proposals / <code>init</code> appends block</td><td>agents never</td></tr>
 <tr><td><code>inbox.md</code> <code>inbox.json</code> <code>actions-applied.json</code></td><td>orchestrator</td><td>dashboard reads only</td></tr>
 <tr><td><code>actions.jsonl</code></td><td><code>server.py</code> (append-only)</td><td>orchestrator reads only; nothing rewrites it</td></tr>
 <tr><td><code>verify.md</code> <code>branch.diff</code></td><td>orchestrator (it exports the job branch with <code>git archive</code>, runs the tests there and saves the diff; it never switches branches to verify)</td><td>approver reads only</td></tr>
-<tr><td><code>spec.md</code> <code>build.md</code> <code>decision.md</code> <code>round-N/*</code></td><td>the one agent named for it</td><td>orchestrator appends human rework note to <code>build.md</code></td></tr>
+<tr><td><code>spec.md</code> <code>build.md</code> <code>decision.md</code> <code>round-N/*</code></td><td>the one agent named for it</td><td>orchestrator appends the human rework note to <code>build.md</code>, and <code>## Orchestrator amendments</code> / <code>## Human amendments</code> to <code>spec.md</code></td></tr>
 <tr><td>product code and tests</td><td>builder, on <code>factory/&lt;id&gt;</code> only</td><td>no one else</td></tr>
 <tr><td>default branch</td><td>orchestrator (merge, state commit)</td><td>agents never</td></tr>
 </table>
@@ -293,19 +297,21 @@ factory/
           "jobs_done":0,"consecutive_failures":0,"stop_reason":null,"current":"&lt;id&gt;|null"},        // null until /factory run
   "jobs": [{
     "id": "001-health-endpoint", "title": "…",
-    "track": "quick|full",
+    "track": "quick|full|null",               // null until the spec exists
+    "extra_reviewers": [], "skip_reviewers": [], // from the spec: ["ux"], ["ui"]
     "stage": "spec|build|review|triage|decision|needs-human|done",
     "round": 1,
     "reviews": {"1": {"security":"PASS|CHANGES|pending|N/A","ux":…,"ui":…,"code":…,
                       "triage":"CLEAN|PATCH|DECISION|pending"}},
-    "decision": "APPROVE|ESCALATE|null",
+    "decision": "APPROVE|APPROVE (human)|ESCALATE|null",
     "branch": "factory/001-health-endpoint",
     "epic": "E1",                              // optional, from backlog tag
     "item": "B3",                              // backlog id; set when the job starts from the backlog
     "parked_reason": "string|null",            // set while parked for a human in a run
     "assumptions": 0,                          // count of A&lt;n&gt; lines in the spec
     "updated": "ISO-8601"
-  }]
+  }],
+  "retro": {"done_since": 0, "last": null}    // retro runs when done_since reaches 5
 }</code></pre>
 <p>Written as a whole-file read-modify-write at every transition. The dashboard relies on <code>stage</code>, <code>track</code>, <code>decision</code>, <code>reviews</code>, <code>id</code>, <code>title</code>; additional fields are ignored. The run banner and backlog queue additionally use <code>run</code>, <code>item</code>, <code>parked_reason</code> and <code>assumptions</code>.</p>
 <h3 id="context">7.5 What each agent reads first</h3>
@@ -323,15 +329,15 @@ factory/
 
 <h3 id="actionfiles">7.6 inbox.json and the action queue</h3>
 <pre><code>// factory/inbox.json  (orchestrator rewrites the whole file)
-{"entries":[{"job":"003-report","reason":"DECISION|ESCALATE|VERIFY FAIL|NO TEST COMMAND|NEEDS PR|AGENT FAILURE",
-  "blocks":["B6"],"why":"1-3 sentences",
+{"entries":[{"job":"003-report","reason":"DECISION|ESCALATE|SIGN-OFF|VERIFY FAIL|MERGE BLOCKED|NO TEST COMMAND|NEEDS PR|AGENT FAILURE",
+  "conflicts":[],"blocks":["B6"],"why":"1-3 sentences",
   "questions":[{"id":1,"text":"…","options":[
      {"key":"a","label":"…","recommended":true,"then":"approve"},
      {"key":"b","label":"…","then":"rework"}]}],
-  "actions":[{"type":"approve|rework","label":"…","recommended":false}]}]}
+  "actions":[{"type":"approve|rework|signoff","label":"…","recommended":false}]}]}
 
 // factory/actions.jsonl  (server.py appends one JSON object per line; never rewritten)
-{"id":"hex","at":"ISO-8601 UTC","type":"approve|rework|resume","job":"003-report|null",
+{"id":"hex","at":"ISO-8601 UTC","type":"approve|rework|resume|signoff","job":"003-report|null",
  "answers":{"1":"a"},"note":"human text, control chars stripped, ≤ 4000 chars"}
 
 // factory/actions-applied.json  (orchestrator rewrites the whole file)
@@ -342,10 +348,11 @@ factory/
 <h3 id="f-init">8.1 init</h3>
 <ol>
 <li>Git: if not a repo, <code>git init -b main</code>. Else detect default branch (<code>origin/HEAD</code>, else current). Never rename.</li>
-<li>Create <code>factory/</code>, <code>factory/jobs/.gitkeep</code>; copy five templates if absent; set <code>default_branch</code> in <code>board.json</code>.</li>
+<li>Create <code>factory/</code>, <code>factory/jobs/.gitkeep</code>; copy the six templates if absent; set <code>default_branch</code> in <code>board.json</code>.</li>
 <li>Append project-context block to <code>CLAUDE.md</code> unless marker present.</li>
 <li>Ensure <code>.gitignore</code> has <code>.DS_Store</code>.</li>
 <li>If code exists: find test/lint/build commands, run tests once, propose <code>CLAUDE.md</code> lines, apply only on consent.</li>
+<li>Merge permission: explain why, ask, and only on a yes merge <code>Bash(git merge --no-ff factory/*)</code> into <code>permissions.allow</code> in <code>.claude/settings.local.json</code> (or the shared <code>settings.json</code> if asked); skip if present.</li>
 <li>Recommend one next step (empty → <code>plan</code>; existing → <code>document</code> then a feature). Offer commit.</li>
 </ol>
 
@@ -378,10 +385,10 @@ factory/
 <li><b>Spec</b>: allocate id <code>NNN-slug</code>; spawn <code>spec-writer</code> → <code>spec.md</code> (declares track).</li>
 <li><b>Readiness gate</b>: spec needs Intent, numbered ACs and a test command in Baseline. Open decisions → <code>needs-human</code> → run <code>grill</code> (log <code>jobs/&lt;id&gt;/grill-log.md</code>, answers <code>answers.md</code>) → re-run spec-writer once → still open ⇒ stay <code>needs-human</code>. Other gaps → re-run spec-writer once, else <code>needs-human</code>.</li>
 <li><b>Build</b>: spawn <code>builder</code> named <code>builder-&lt;id&gt;</code>; branch <code>factory/&lt;id&gt;</code> from default branch; tests per AC; commits only product code; writes <code>build.md</code>.</li>
-<li><b>Review round N</b>: <code>full</code> = 4 reviewers in one parallel message; <code>quick</code> = security + code (ux/ui recorded <code>N/A</code>). Orchestrator waits for all expected files, records each VERDICT on the board as files land.</li>
+<li><b>Review round N</b>: <code>full</code> = 4 reviewers in one parallel message; <code>quick</code> = security + code (ux/ui recorded <code>N/A</code>). The spec's <code>Extra reviewers:</code> adds ux/ui to quick; <code>Skip reviewers:</code> drops ux/ui from full (never security or code). Orchestrator waits for all expected files, records each VERDICT on the board as files land.</li>
 <li><b>Triage</b>: spawn <code>triager</code>. <code>CLEAN</code> → decision. <code>DECISION</code> → <code>needs-human</code>. <code>PATCH</code> → if N&lt;2, commit factory state, then resume <code>builder-&lt;id&gt;</code> or spawn a fresh builder pointed at the triage file (fix only <code>patch</code> items) and start round N+1; at N=2 go to decision.</li>
-<li><b>Verify, then decide</b>: the orchestrator switches to <code>factory/&lt;id&gt;</code>, runs the test command (and lint/build if listed in <code>CLAUDE.md</code>), switches back, and writes <code>verify.md</code> (<code>VERIFY: PASS|FAIL</code> + command output tail + diff stat) and <code>branch.diff</code>. <code>FAIL</code> after round 2 → <code>needs-human</code>; earlier → treated as a failed round. Then it spawns <code>approver</code>, which needs no shell.</li>
-<li><b>Decision</b>: spawn <code>approver</code>. <code>APPROVE</code> → merge <code>factory/&lt;id&gt;</code> into default branch with <code>--no-ff</code> (or push branch and ask for a PR if protected / PR-required), stage <code>done</code>, commit factory state on default branch (<code>factory: record job &lt;id&gt;</code>), offer retro. <code>ESCALATE</code> → <code>needs-human</code>.</li>
+<li><b>Verify, then decide</b>: the orchestrator exports the branch with <code>git archive</code> into the scratchpad (never switching branches; if the default branch has gained code since the branch was cut, it verifies the merge result in a detached worktree instead), runs the test command (and lint/build if listed in <code>CLAUDE.md</code>) with a throwaway <code>HOME</code>, and writes <code>verify.md</code> (<code>VERIFY: PASS|FAIL</code> + command output tail + diff stat) and <code>branch.diff</code>. <code>FAIL</code> after round 2 → <code>needs-human</code>; earlier → treated as a failed round. Then it spawns <code>approver</code>, which needs no shell.</li>
+<li><b>Decision</b>: spawn <code>approver</code>. <code>APPROVE</code> → merge <code>factory/&lt;id&gt;</code> into default branch with <code>--no-ff</code> (or push branch and ask for a PR if protected / PR-required), stage <code>done</code>, commit factory state on default branch (<code>factory: record job &lt;id&gt;</code>), re-check parked jobs for conflicts (<code>git merge-tree</code>), offer retro at 5 done jobs. In headless mode the sub-orchestrator stops at APPROVE and the outer loop merges. A merge refused by a permission policy parks the job <code>MERGE BLOCKED</code>. <code>ESCALATE</code> → <code>needs-human</code>. Either way, follow-ups are collected into <code>factory/followups.md</code>.</li>
 </ol>
 
 <h3 id="f-plan">8.3 plan (<code>/factory plan &lt;vision&gt;</code>)</h3>
@@ -406,18 +413,23 @@ factory/
 <li><b>approve &lt;id&gt;</b>: only for <code>needs-human</code>; show <code>decision.md</code> (or, if the job never reached the approver, the inbox entry and the human's answers, and write an <code>APPROVE (human)</code> decision); re-verify from a <code>git archive</code>; merge; <code>done</code>; commit factory state.</li>
 <li><b>rework &lt;id&gt; &lt;note&gt;</b>: append the note under <code>## Human rework</code> in <code>build.md</code> and under <code>## Human amendments</code> in <code>spec.md</code> (so the spec is not stale); resume <code>builder-&lt;id&gt;</code> (spawn a fresh one with the same name if gone); new review round. Grants two more rounds (cap is per rework, not global).</li>
 <li><b>retro</b> (manual, also offered every 5 done jobs and at epic close): <code>retro</code> agent writes <code>factory/retro-proposal.md</code>; orchestrator appends learnings to <code>learnings.md</code>; <code>CLAUDE.md</code> pitfalls applied only if the human approves. At epic close the orchestrator also reports which of the epic's "done when" checks hold (does not edit <code>epics.md</code>).</li>
+<li><b>signoff &lt;id&gt; [note]</b>: records the human's sign-off on <code>[sign-off]</code> ACs in <code>answers.md</code> and under <code>## Human amendments</code>; the job keeps running and still needs review, verify and the approver.</li>
 <li><b>status</b>: prints board.</li>
 </ul>
 
 <h3 id="f-grill">8.6 grill and brainstorm</h3>
 <table>
 <tr><th></th><th>grill</th><th>brainstorm</th></tr>
-<tr><td>Mode</td><td>converge: empty the decision frontier</td><td>diverge, then converge</td></tr>
-<tr><td>Questions</td><td>whole frontier per round, numbered; <code>[recommend]</code> carries a suggestion, <code>[open]</code> does not</td><td>one prompt per message, no menus, coach supplies no ideas</td></tr>
-<tr><td>Log</td><td><code>docs/grill-log.md</code> (or <code>factory/jobs/&lt;id&gt;/grill-log.md</code>), lines <code>D&lt;n&gt; Q → A (user|assumed)</code>, <code>RISK:</code>, <code>OPEN:</code>; resumes if <code>status: open</code></td><td><code>docs/brainstorm-log.md</code>: <code>idea:</code> <code>insight:</code> <code>technique:</code></td></tr>
-<tr><td>Wrap-up</td><td>mirror → connect (contradictions) → intent doc → <code>status: complete</code></td><td>mirror → connect → MoSCoW → <code>docs/intent.md</code></td></tr>
-<tr><td>Headless</td><td>assumes <code>[recommend]</code> answers, records <code>OPEN</code> for the rest; <code>partial</code> if any OPEN</td><td>generates ideas itself, all marked assumed</td></tr>
+<tr><td>Use when</td><td>a direction exists (vision, spec, design) and must be pinned down</td><td>the idea is still a sentence or two</td></tr>
+<tr><td>Mode</td><td>converge: empty the decision frontier</td><td>diverge (30+ ideas), then converge as a separate phase</td></tr>
+<tr><td>Questions</td><td>whole frontier per round, numbered; <code>[recommend]</code> carries a suggestion, <code>[open]</code> (users, scope, regulation, success) does not</td><td>one prompt per message, no menus; coach supplies no ideas (one spark if asked directly)</td></tr>
+<tr><td>Structure</td><td>design tree; a question waits for a later round if it depends on one still open</td><td>3–4 techniques (What If, First Principles, Role Playing, Analogical, Worst Idea, Random Stimulation), switch every 5–10 ideas</td></tr>
+<tr><td>Log</td><td><code>docs/grill-log.md</code> (or <code>factory/jobs/&lt;id&gt;/grill-log.md</code>), lines <code>D&lt;n&gt; Q → A (user|assumed)</code>, <code>RISK:</code>, <code>OPEN:</code>; resumes if <code>status: open</code></td><td><code>docs/brainstorm-log.md</code>: <code>idea:</code> <code>insight:</code> <code>technique:</code>; resumes if <code>status: open</code></td></tr>
+<tr><td>Wrap-up</td><td>mirror → connect (contradictions, constraints) → intent doc → <code>status: complete</code>; does not act until the human confirms</td><td>converge (MoSCoW default, or affinity / impact-effort, on the human's verdicts) → mirror → connect → <code>docs/intent.md</code> → offer grill</td></tr>
+<tr><td>Intent doc</td><td>Goal · Decisions (D-numbers) · Out of scope · Risks · Still open; updates an existing brainstorm intent doc, tagging changed lines</td><td>Goal · Chosen direction (Must/Should/Could/Won't) · Key insights · Risks · Still open</td></tr>
+<tr><td>Headless</td><td>assumes <code>[recommend]</code> answers, records <code>OPEN</code> for the rest, adds an Assumptions section; <code>partial</code> if any OPEN</td><td>generates ideas itself, all marked assumed, still narrows and writes the intent doc</td></tr>
 <tr><td>Facts</td><td>looked up by sub-agent, never asked of the human</td><td>—</td></tr>
+<tr><td>Called by the orchestrator</td><td>plan Pass 1 (always, unless "skip grill"), document (open questions), readiness gate (open decisions; never in headless mode), end of a run (inbox)</td><td>plan Pass 1 when the vision is thin (&lt;~60 words, no users or outcome) or the human is unsure</td></tr>
 </table>
 
 <h3 id="f-run">8.7 run (<code>/factory run</code>): the outer loop</h3>
@@ -458,7 +470,7 @@ factory/
 <tr><th>Threat</th><th>Control</th></tr>
 <tr><td>A web page you visit posts "approve" to localhost</td><td>Per-run random token (printed after <code>#</code>, so never sent to a server or logged), required in <code>X-Factory-Token</code>; <code>Origin</code> must match the server; body must be <code>application/json</code>; no CORS headers are ever sent</td></tr>
 <tr><td>DNS rebinding reads <code>board.json</code> or the token</td><td>Binds 127.0.0.1 only; any request whose <code>Host</code> is not <code>127.0.0.1:port</code>, <code>localhost:port</code> or <code>[::1]:port</code> gets 403</td></tr>
-<tr><td>A forged or stale action</td><td>The server only accepts jobs currently <code>needs-human</code> and three action types (<code>approve</code> also requires that the job was built, i.e. <code>build.md</code> exists); the orchestrator validates again at apply time and marks stale or malformed ones <code>stale</code>/<code>rejected</code></td></tr>
+<tr><td>A forged or stale action</td><td>The server only accepts four action types, for jobs currently <code>needs-human</code> (<code>signoff</code>: a job with a <code>SIGN-OFF</code> inbox entry that is not done; <code>approve</code> also requires that the job was built, i.e. <code>build.md</code> exists); the orchestrator validates again at apply time and marks stale or malformed ones <code>stale</code>/<code>rejected</code></td></tr>
 <tr><td>Oversized or hostile input</td><td>Body ≤ 16 KB, note ≤ 4000 chars with control characters stripped, answer keys/values constrained to small ids</td></tr>
 <tr><td>Approving something that no longer passes</td><td>Apply re-runs the tests from a <code>git archive</code> of the branch before any merge; failure leaves the job in <code>needs-human</code></td></tr>
 </table>
@@ -506,7 +518,7 @@ factory/
 <tr><td>Backlog item size</td><td><code>planner.md</code> PASS 3</td><td>≤ ~5 acceptance criteria</td></tr>
 <tr><td>Dashboard poll</td><td><code>dashboard.html</code></td><td>3000 ms</td></tr>
 <tr><td>Run stop: consecutive parked jobs</td><td>orchestrator Run command</td><td>2</td></tr>
-<tr><td>Dashboard server port, body, note limits</td><td><code>server.py</code></td><td>8000 (tries up to 8020); body ≤ 16 KB; note ≤ 4000 chars; ≤ 10 answers; action types approve / rework / resume</td></tr>
+<tr><td>Dashboard server port, body, note limits</td><td><code>server.py</code></td><td>8000 (tries up to 8020); body ≤ 16 KB; note ≤ 4000 chars; ≤ 10 answers; action types approve / rework / resume / signoff</td></tr>
 <tr><td>Plugin version</td><td><code>.claude-plugin/plugin.json</code></td><td>bump on every behavior change</td></tr>
 </table>
 
@@ -567,7 +579,7 @@ claude -p "/software-factory:brainstorm …" --plugin-dir $PL                   
 <tr><td>L1</td><td>Write-scope rules are prompt conventions, not enforced. Agents hold Write/Bash broadly.</td><td>A misbehaving agent could edit another file or board.json.</td><td>Hooks (PreToolUse) that block writes outside the agent's file; or a validation step after each agent that diffs <code>git status</code>.</td></tr>
 <tr><td>L2</td><td>Orchestrator is a long prompt executed by the model; state machine is not code.</td><td>Possible drift (skipped steps, wrong stage). Mitigated by first-line grammar and board updates.</td><td>Move parsing/transition checks into a small script; add a <code>/factory doctor</code> that validates board vs files.</td></tr>
 <tr><td>L3</td><td>One job at a time. Parallelism exists only inside a review round.</td><td>Throughput.</td><td>Use git worktrees per job; board already keyed by id.</td></tr>
-<tr><td>L4</td><td>Dashboard does not render <code>plan</code>/<code>document</code> state, <code>epic</code>, or severity counts; ignores jobs whose stage is unknown.</td><td>Planning progress invisible on the board.</td><td>Add a planning banner and epic grouping.</td></tr>
+<tr><td>L4</td><td>Dashboard does not render <code>document</code> state or severity counts, and ignores jobs whose stage is unknown. (Planning progress and epics are shown since 1.6.0.)</td><td>Document progress invisible on the board.</td><td>Add a document banner.</td></tr>
 <tr><td>L5</td><td>No template upgrade path: <code>init</code> never overwrites, so projects keep old <code>dashboard.html</code>/<code>userguide.html</code>.</td><td>Stale guides after plugin updates.</td><td><code>init --upgrade</code> that diffs and offers per-file replacement; version stamp inside templates.</td></tr>
 <tr><td>L6</td><td>Short <code>/factory</code> alias unverified; prompts use it for brevity.</td><td>Confusion in docs.</td><td>Confirm behavior and either rename or document.</td></tr>
 <tr><td>L7</td><td>Branch protection / PR flow is described but untested; no automatic PR creation.</td><td>Manual step for protected repos.</td><td>Use <code>gh pr create</code> when available and consented.</td></tr>
@@ -619,6 +631,7 @@ claude -p "/software-factory:brainstorm …" --plugin-dir $PL                   
 <tr><td>1.6.0</td><td>From the planned-product test (<code>/factory plan</code> to the first jobs): in a run the sub-orchestrator stops at the approver's APPROVE and returns <code>APPROVED</code>, and the outer loop, in the session the human started the run from, does the merge, the record commit and the safety check; a merge refused by a permission policy is never worked around but parks the job as <code>MERGE BLOCKED</code> with a one-click approve and stops the run; at the round cap the approver may approve when every open item is low severity and confined to tests, comments or docs (recorded as a follow-up); <code>Beyond the spec</code> from any round becomes an amendment; reviewers name a <code>Known:</code> follow-up only when the job touches its code; follow-ups have a matching, conversion and closing rule and skip process notes; a dashboard sign-off for the job a run has in flight is left to that job, so one action has one writer; <code>signoff</code> is in the inbox formats; the backlog tick matches only a real item line; grill updates a brainstorm's <code>intent.md</code> instead of replacing it; architecture decisions are <code>AD&lt;n&gt;</code>, distinct from grill <code>D&lt;n&gt;</code>; timestamps are UTC and human dates local; spec-writers run every exact command they put in a criterion; builders clean up untracked build output left on the default branch and check their diff for raw invisible characters; the board template has <code>retro</code> and new jobs get <code>skip_reviewers</code>; the dashboard shows planning progress.</td></tr>
 <tr><td>1.6.1</td><td><code>/software-factory:init</code> asks whether the factory may merge approved jobs and, on a yes, adds the single rule <code>Bash(git merge --no-ff factory/*)</code> to <code>.claude/settings.local.json</code> (merged into existing settings, never duplicated, never without consent), so Claude Code's permission check does not park every approved job as <code>MERGE BLOCKED</code>; the <code>MERGE BLOCKED</code> inbox entry and the user guides point to the rule.</td></tr>
 <tr><td>1.6.2</td><td>Fixes from the B3 run of the planned-product test: a spec names on a <code>Docs files:</code> line each <code>docs/</code> file an acceptance criterion requires the builder to change (never vision, decisions, epics or intent), and the builder may commit only those; follow-ups are collected from every review round, not only the last; whoever merges a job closes the follow-ups it fixed (in a run, the outer loop); reviewers, triager, approver and spec-writer are told their output file is a required pipeline input, not an optional report; the builder's invisible-character check covers new untracked files and runs before every commit; <code>branch.diff</code> keeps every source file's diff whole and cuts only test, fixture and generated files, naming them; init says the merge permission takes effect at once.</td></tr>
+<tr><td>1.6.3</td><td>Documentation only: both user guides explain the four skills (init, factory, brainstorm, grill), how brainstorm and grill differ, and when the factory runs them; the README has a skills table; stale statements fixed (backlog ticked only on merge, four dashboard actions including <code>signoff</code>, merge conflicts, verification from <code>git archive</code>, approver never merges); sign-off criteria, <code>MERGE BLOCKED</code>, follow-ups and extra/skip reviewers documented; this document's schemas and the upgrade path brought up to 1.6.x.</td></tr>
 </table>
 
 <h2 id="glossary">17. Glossary</h2>

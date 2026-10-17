@@ -48,20 +48,23 @@ ol.story>li{margin:10px 0}
   <b>User Guide</b>
   <a href="#what">1 What this is</a>
   <a href="#install">2 Install and init</a>
-  <a href="#paths">3 Pick a path</a>
-  <a href="#vague">4 Vague idea to product</a>
+  <a href="#skills">3 The four skills</a>
+  <a class="sub" href="#skills-which">Brainstorm or grill?</a>
+  <a class="sub" href="#skills-auto">When the factory calls them</a>
+  <a href="#paths">4 Pick a path</a>
+  <a href="#vague">5 Vague idea to product</a>
   <a class="sub" href="#vague-story">The walkthrough</a>
   <a class="sub" href="#vague-you">Where you decide</a>
-  <a href="#existing">5 Features on existing code</a>
-  <a href="#small">6 One small change</a>
-  <a href="#big">7 A big capability</a>
-  <a href="#asks">8 When it asks you</a>
-  <a href="#loop">9 Inside one job</a>
-  <a href="#commands">10 Commands</a>
-  <a href="#files">11 Files you will see</a>
-  <a href="#dashboard">12 Dashboard</a>
-  <a href="#role">13 Your role</a>
-  <a href="#trouble">14 Troubleshooting</a>
+  <a href="#existing">6 Features on existing code</a>
+  <a href="#small">7 One small change</a>
+  <a href="#big">8 A big capability</a>
+  <a href="#asks">9 When it asks you</a>
+  <a href="#loop">10 Inside one job</a>
+  <a href="#commands">11 Commands</a>
+  <a href="#files">12 Files you will see</a>
+  <a href="#dashboard">13 Dashboard</a>
+  <a href="#role">14 Your role</a>
+  <a href="#trouble">15 Troubleshooting</a>
   <a href="#more">Related docs</a>
 </aside>
 <main>
@@ -71,12 +74,12 @@ ol.story>li{margin:10px 0}
 </header>
 
 <h2 id="what">1. What you are using</h2>
-<p>The factory is a set of skills and agents that run in a Claude Code session. You describe the outcome. The factory writes a spec, builds it on its own git branch, has independent reviewers check the diff, and either merges it or stops with a specific question. There is no server. State lives in <code>factory/</code>, <code>docs/</code> and <code>CLAUDE.md</code> inside your project.</p>
+<p>The factory is a set of skills and agents that run in a Claude Code session. You describe the outcome. The factory writes a spec, builds it on its own git branch, has independent reviewers check the diff, and either merges it or stops with a specific question. Nothing runs in the background: the only server is an optional local dashboard (<code>factory/server.py</code>). State lives in <code>factory/</code>, <code>docs/</code> and <code>CLAUDE.md</code> inside your project.</p>
 <div class="grid2">
   <div class="card"><h3>You keep the judgment</h3><p>Who the product is for, what is in scope, which stack to use, and whether a risky change should merge. Those stops are called <code>needs-human</code>.</p></div>
   <div class="card"><h3>The factory keeps the paperwork</h3><p>Specs, tests, reviews, triage and the merge. Each agent reads files and writes one file, so a long session can be resumed from disk.</p></div>
 </div>
-<p>Work is sized to the job. A one-line bugfix uses the <b>quick</b> track (security and code review). A feature that touches auth, data or a user flow uses the <b>full</b> track (security, UX, UI and code). A whole product starts with a plan, then a queue of small jobs.</p>
+<p>Work is sized to the job. A one-line bugfix uses the <b>quick</b> track (security and code review). A feature that touches auth, data or a user flow uses the <b>full</b> track (security, UX, UI and code). The spec can adjust either: a quick job with a visible surface can add the UX or UI reviewer (<code>Extra reviewers:</code>), and a full job with no screen can drop UI or UX (<code>Skip reviewers:</code>). Security and code review always run. A whole product starts with a plan, then a queue of small jobs.</p>
 
 <h2 id="install">2. Install once, then init each project</h2>
 <p>Install the plugin in Claude Code:</p>
@@ -90,7 +93,52 @@ ol.story>li{margin:10px 0}
 <p>Init then asks whether the factory may merge approved jobs in this project. Say yes, and it adds one permission rule, <code>Bash(git merge --no-ff factory/*)</code>, to <code>.claude/settings.local.json</code>. Without it, Claude Code's permission check (auto mode in particular) can refuse a run's merge, and every approved job then waits for your click. The rule covers only factory job branches, and a merge still needs an approval and passing tests.</p>
 <div class="callout warn"><b>Before a job.</b> Be on the default branch, and have no uncommitted changes outside <code>factory/</code>, <code>docs/</code> and <code>CLAUDE.md</code>. Planning, documenting, status and retros do not need a clean tree.</div>
 
-<h2 id="paths">3. Pick a path</h2>
+<h2 id="skills">3. The four skills, and when to use each</h2>
+<p>The plugin installs four skills. You run each one as a slash command, and the factory also runs brainstorm and grill for you at certain points (<a href="#skills-auto">see below</a>).</p>
+<table>
+  <tr><th>Skill</th><th>What it does</th><th>Use it when</th><th>It writes</th></tr>
+  <tr><td><code>/software-factory:init</code></td><td>One-time setup. It records the default branch and copies the factory files. It adds the project-context block to <code>CLAUDE.md</code>, finds your test command in existing code, and offers the merge permission.</td><td>Once per project, before anything else. Re-run it any time: it never overwrites, and it asks about the merge permission again if the rule is missing.</td><td><code>factory/</code>, <code>CLAUDE.md</code>, <code>.gitignore</code>, and <code>.claude/settings.local.json</code> (only if you say yes)</td></tr>
+  <tr><td><code>/software-factory:factory</code></td><td>The orchestrator. Everything else is a sub-command of it: <code>plan</code>, <code>document</code>, <code>&lt;feature&gt;</code>, <code>next</code>, <code>run</code>, <code>apply</code>, <code>approve</code>, <code>rework</code>, <code>signoff</code>, <code>status</code>, <code>retro</code> (see <a href="#commands">Commands</a>). It starts every agent, and it is the only part that merges.</td><td>Whenever you want something planned, built, merged or answered.</td><td><code>factory/board.json</code>, the inbox, job folders, merges and state commits</td></tr>
+  <tr><td><code>/software-factory:brainstorm [topic]</code></td><td>A coach that draws ideas out of <i>you</i>, then helps you narrow them with MoSCoW (Must / Should / Could / Won't).</td><td>You have a sentence or two and no clear direction yet.</td><td><code>docs/brainstorm-log.md</code>, <code>docs/intent.md</code></td></tr>
+  <tr><td><code>/software-factory:grill [topic]</code></td><td>An interviewer that turns a direction into decisions, round by round, until nothing important is left assumed.</td><td>You know roughly what you want (a vision, a spec, a design, a big feature) and want it stress-tested.</td><td><code>docs/grill-log.md</code>, <code>docs/intent.md</code> (or a job's <code>grill-log.md</code> and <code>answers.md</code>)</td></tr>
+</table>
+
+<h3 id="skills-which">Brainstorm or grill?</h3>
+<p>They are two halves of one step. <b>Brainstorm widens</b>: it turns a vague idea into many options and helps you choose. <b>Grill narrows</b>: it takes the direction you chose and settles every decision under it. When the idea is vague, run brainstorm and then grill. When you already have a direction, go straight to grill.</p>
+<table>
+  <tr><th></th><th>brainstorm</th><th>grill</th></tr>
+  <tr><td>Starting point</td><td>A vague idea, "help me ideate"</td><td>A plan, vision, spec or design; "grill me", "poke holes"</td></tr>
+  <tr><td>Goal</td><td>Volume first (30+ ideas is a good session), then a separate narrowing step</td><td>An empty list of open questions: every decision made, nothing silently assumed</td></tr>
+  <tr><td>Claude's role</td><td>Coach. It suggests <b>no ideas of its own</b>, only questions, provocations and constraints. Ask it directly and you get one spark, then the pen comes back to you.</td><td>Interviewer. It recommends an answer on routine <code>[recommend]</code> questions and stays silent on product-defining <code>[open]</code> ones, so those answers are yours.</td></tr>
+  <tr><td>Pace</td><td>One prompt per message, no menus</td><td>Rounds: it asks every question that can be answered now, numbered, then waits for your answers before the next round</td></tr>
+  <tr><td>Method</td><td>3 or 4 techniques in turn (What If, First Principles, Role Playing, Analogical Thinking, Worst Idea, Random Stimulation), switching every 5 to 10 ideas</td><td>A design tree: each answer unlocks the questions that depend on it. Facts it can look up (in the code, docs or the web) it finds itself and never asks you.</td></tr>
+  <tr><td>How it narrows</td><td>One named move using <b>your</b> judgments: MoSCoW (the default), affinity clustering, or impact-effort. It does not rank for you.</td><td>The interview ends when no open question is left</td></tr>
+  <tr><td>Log (resumable)</td><td><code>docs/brainstorm-log.md</code>: <code>idea:</code>, <code>insight:</code>, <code>technique:</code> lines</td><td><code>docs/grill-log.md</code>: <code>D&lt;n&gt; Q: … -&gt; A: … (user|assumed)</code>, plus <code>RISK:</code> and <code>OPEN:</code> lines</td></tr>
+  <tr><td><code>docs/intent.md</code> sections</td><td>Goal, Chosen direction (Must / Should / Could / Won't), Key insights, Risks, Still open</td><td>Goal, Decisions (each with its D-number), Out of scope, Risks, Still open. If a brainstorm already wrote the file, grill <b>updates</b> it and tags each line it changed with the D-number.</td></tr>
+  <tr><td>Ends with</td><td>Your ideas shown back to you, the links between them, then <code>intent.md</code> and an offer to grill the chosen direction</td><td>Your decisions shown back to you, any contradictions between them, then <code>intent.md</code>. It does not act until you confirm.</td></tr>
+</table>
+<p>Both skills keep an append-only log. If a session is interrupted, running the same skill again picks up from the log (<code>status: open</code>) instead of starting over. Both end the same way: they show your own answers back to you first, and only then point out the links and tensions they see.</p>
+<p>A grill question looks like this:</p>
+<pre><code>❓ Q1 [open] - Who is a household member: anyone with the link, or invited accounts only?
+
+❓ Q2 [recommend] - Conflict handling: two people tick the same item at once.
+➡️ Last write wins, with a visible "updated by" line.</code></pre>
+<p>Run grill with no topic and it uses the current conversation or the most recent factory artifact (<code>docs/vision.md</code>, or a job's <code>spec.md</code>).</p>
+
+<h3 id="skills-auto">When the factory calls them for you</h3>
+<table>
+  <tr><th>Moment</th><th>Skill</th><th>Where the result goes</th></tr>
+  <tr><td><code>factory plan</code>, pass 1, when the vision is thin (roughly under 60 words, no stated users or outcome) or you say you are unsure</td><td>brainstorm</td><td><code>docs/brainstorm-log.md</code>, <code>docs/intent.md</code></td></tr>
+  <tr><td><code>factory plan</code>, pass 1, always (unless you say "skip grill")</td><td>grill, seeded with your vision and any brainstorm result</td><td><code>docs/grill-log.md</code>, <code>docs/intent.md</code></td></tr>
+  <tr><td><code>factory document</code>, when the code cannot say <i>why</i> a choice was made</td><td>grill, seeded with the planner's questions</td><td><code>docs/grill-log.md</code>, <code>docs/answers.md</code></td></tr>
+  <tr><td>A job's spec has open decisions (a product choice with no safe default)</td><td>grill, seeded with those decisions</td><td><code>factory/jobs/&lt;id&gt;/grill-log.md</code>, <code>answers.md</code></td></tr>
+  <tr><td>A <code>factory run</code> ends with questions in the inbox</td><td>grill (offered), seeded with <code>factory/inbox.md</code></td><td>each job's <code>answers.md</code>, then rework or approve</td></tr>
+</table>
+<p>Inside an unattended <code>factory run</code>, the factory never grills mid-job. A job that needs your decision is parked in the inbox instead, and the run moves on.</p>
+<p><b>Unattended (headless) sessions.</b> Ask for an unattended plan, or start either skill and say the run is headless. Brainstorm then generates the ideas itself and marks every one <code>(assumed)</code>. Grill answers each <code>[recommend]</code> question with its own recommendation, marked <code>(assumed)</code>. It records each <code>[open]</code> question it cannot settle from your files as <code>OPEN:</code> and never invents an answer. A grill with <code>OPEN</code> lines left ends <code>partial</code>, and those questions come to you before the plan is approved.</p>
+<p><b>Three kinds of numbered entry.</b> <code>D&lt;n&gt;</code> are your grill decisions (<code>grill-log.md</code>). <code>AD&lt;n&gt;</code> are the planner's architecture decisions (<code>docs/decisions.md</code>). <code>A&lt;n&gt;</code> are assumptions written in a brief or spec. The prefix keeps them from colliding.</p>
+
+<h2 id="paths">4. Pick a path</h2>
 <table>
   <tr><th>Where you are</th><th>What to run</th><th>Walkthrough</th></tr>
   <tr><td>A sentence or two, no product yet</td><td><code>/software-factory:factory plan &lt;the sentence&gt;</code></td><td><a href="#vague">Vague idea to a finished product</a></td></tr>
@@ -101,7 +149,7 @@ ol.story>li{margin:10px 0}
   <tr><td>A job has stopped and is waiting</td><td><code>/software-factory:factory approve &lt;id&gt;</code> or <code>/software-factory:factory rework &lt;id&gt; &lt;note&gt;</code></td><td><a href="#asks">When the factory asks you</a></td></tr>
 </table>
 
-<h2 id="vague">4. Start with a vague idea and finish with a product</h2>
+<h2 id="vague">5. Start with a vague idea and finish with a product</h2>
 <p>Use this when you have a direction and little else. Nothing is built until you have approved a vision, an architecture and a backlog. The first built thing is a skeleton with a passing test. Features land one job at a time on the default branch.</p>
 <div class="flow">
   <span class="step">Init</span><span class="arrow">→</span>
@@ -130,7 +178,7 @@ claude
   <li><b>Approve pass 3 (epics and backlog).</b> You get <code>docs/epics.md</code> and a dependency-ordered <code>factory/backlog.md</code>. Backlog lines look like <code>- [ ] [E2] Check an item off from a second device</code>. The <code>[E2]</code> tag ties the job to an epic. The first item is always the <b>scaffold</b>: project skeleton, a passing test, documented commands and CI. Scope stays small on purpose: about seven Must capabilities, at most eight epics, and roughly twenty-five Must backlog items. Should and Could live under <code>## Later</code> in <code>epics.md</code>, so they are remembered and not built yet. If the plan is larger than that, trim it before you approve. On approval, a proposed project-context block is applied to <code>CLAUDE.md</code> (stack, test command, conventions). The factory will not invent “observed pitfalls” at this stage, because nothing has been observed yet.</li>
   <li><b>Build the skeleton.</b>
 <pre><code>&gt; /software-factory:factory next</code></pre>
-  <code>next</code> takes the first unchecked backlog line, ticks it, and runs it as a job (id like <code>001-scaffold</code>). This job is allowed to start without a test command, because its acceptance criteria create one. After it merges, later jobs have a real baseline.</li>
+  <code>next</code> takes the first ready backlog line (unchecked, with its <code>depends:</code> items done) and runs it as a job (id like <code>001-scaffold</code>). The line is ticked <code>[x]</code> only when that job merges; until then, the job's stage on the board shows its progress. This job is allowed to start without a test command, because its acceptance criteria create one. After it merges, later jobs have a real baseline.</li>
   <li><b>Build the product one item at a time.</b> Repeat <code>/software-factory:factory next</code>, or let <a href="#unattended"><code>/software-factory:factory run</code></a> do the whole list. Each job follows the <a href="#loop">loop</a>: spec, build on <code>factory/&lt;id&gt;</code>, review, triage, approval, merge into the default branch, then a commit that records factory state (<code>factory: record job &lt;id&gt;</code>). Keep the <a href="#dashboard">dashboard</a> open. A card outlined in amber is waiting on you; see <a href="#asks">when it asks</a>. Anything the plan did not include can be added as a new <code>- [ ]</code> line, or started immediately with <code>/software-factory:factory &lt;feature&gt;</code>.</li>
   <li><b>Close an epic, then look back.</b> When the last item of an epic merges, the factory checks that epic’s “done when” lines in <code>docs/epics.md</code> and tells you which ones hold. Run <code>/software-factory:factory retro</code> when you want a pause (it is also offered every five finished jobs). It proposes lessons. You approve the ones that should be written into <code>CLAUDE.md</code>.</li>
 </ol>
@@ -150,7 +198,7 @@ claude
 </table>
 <p>If you want an unattended plan, say so. Grill and brainstorm will answer what they can, mark those answers <code>(assumed)</code>, and list every assumption at the approval gate. They will not invent answers to open product questions; those stay open until you reply.</p>
 
-<h2 id="existing">5. Add features to a product that already exists</h2>
+<h2 id="existing">6. Add features to a product that already exists</h2>
 <p>Use this when the repository already builds and you want the factory to extend it. You skip the three-pass product plan. You do write down what the code already decided, so later specs do not fight it.</p>
 <div class="flow">
   <span class="step">Clean tree, default branch</span><span class="arrow">→</span>
@@ -177,7 +225,7 @@ claude
 </ol>
 <div class="callout warn"><b>Pre-existing bugs stay pre-existing.</b> Reviews judge the change against its spec. A problem that was already in the code is triaged as <code>defer</code> and logged. It is not fixed inside the feature job. If the baseline tests are already failing, the spec records that, so the builder is not blamed for it.</div>
 
-<h2 id="small">6. Ship one small change</h2>
+<h2 id="small">7. Ship one small change</h2>
 <p>Use this for a change whose behavior you can state in a sentence and whose blast radius is one area: a health check, a copy fix, a validation rule, a bug with an obvious correct result.</p>
 <pre><code>&gt; /software-factory:factory add a GET /health endpoint that returns {"status":"ok"}</code></pre>
 <p>A smooth run looks like this:</p>
@@ -189,7 +237,7 @@ claude
 </ol>
 <p>Say the outcome, not the file to edit. “Return 200 and <code>{"status":"ok"}</code> from <code>GET /health</code> with no auth” gives the spec-writer acceptance criteria. “Add a function in <code>src/health.ts</code>” does not.</p>
 
-<h2 id="big">7. A big capability, split into jobs</h2>
+<h2 id="big">8. A big capability, split into jobs</h2>
 <p>Use this when the ask is a capability, not a change. “Add billing”, “let customers invite their team”, or “support SOC 2 evidence collection” will make a spec with too many acceptance criteria, and the review will thrash.</p>
 <ol class="story">
   <li><b>Settle the shape first.</b> If you can already describe it, run <code>/software-factory:grill let customers invite teammates and revoke access</code>. If you cannot, run <code>/software-factory:brainstorm team access</code> and then grill the direction you chose. Both write <code>docs/intent.md</code>.</li>
@@ -203,7 +251,7 @@ claude
 </ol>
 <p>On a brand-new product, you usually do not do this by hand. <a href="#vague">Pass 3</a> already produces that ordered backlog. Use this section when the product exists and the new capability showed up later.</p>
 
-<h2 id="asks">8. When the factory stops and asks you</h2>
+<h2 id="asks">9. When the factory stops and asks you</h2>
 <p>A job in <code>needs-human</code> is paused on purpose. Read the file it points at, then answer with one of the two commands. Nothing in that state merges on its own.</p>
 <table>
   <tr><th>Why it stopped</th><th>What you see</th><th>What you do</th></tr>
@@ -212,7 +260,11 @@ claude
   <tr><td>Triage found a product call, or two reasonable fixes</td><td><code>TRIAGE: DECISION</code> in <code>round-N/triage.md</code></td><td><code>/software-factory:factory rework &lt;id&gt; &lt;which fix you want&gt;</code></td></tr>
   <tr><td>The approver will not merge</td><td><code>decision.md</code> starts with <code>ESCALATE</code> and names the question</td><td><code>/software-factory:factory approve &lt;id&gt;</code> after you have read it, or <code>/software-factory:factory rework &lt;id&gt; &lt;note&gt;</code></td></tr>
   <tr><td>Tests failed after the second review round</td><td><code>verify.md</code> starts with <code>VERIFY: FAIL</code></td><td>Read the failure, then rework with what should change</td></tr>
+  <tr><td>A criterion only a person can meet (a product-owner OK, a legal or on-device check)</td><td>An acceptance criterion tagged <code>[sign-off]</code>; <code>decision.md</code> starts <code>ESCALATE</code> with <code>Sign-off needed:</code></td><td>Check it, then <code>/software-factory:factory approve &lt;id&gt;</code>. To save the wait, sign off early with <code>/software-factory:factory signoff &lt;id&gt; [note]</code> (or the dashboard) while the job is still building. The job still needs review and the approver before it merges.</td></tr>
+  <tr><td>The merge was refused by your Claude Code permission settings</td><td>Parked as <code>MERGE BLOCKED</code>. The job is approved and verified, and the factory never works around a refusal.</td><td><code>/software-factory:factory approve &lt;id&gt;</code> (or <b>Merge the approved branch</b> on the dashboard). To stop it recurring, re-run <code>/software-factory:init</code> and allow the merge rule.</td></tr>
+  <tr><td>Another job merged first and touched the same files</td><td><b>Conflicts with the default branch</b> on the parked job, or a conflict in <code>verify.md</code></td><td>Approve as usual. Your decision is kept, and the job goes back to the builder to merge the default branch in, keeping both sides. It is then reviewed again.</td></tr>
 </table>
+<p><b>Follow-ups.</b> Reviewers note out-of-scope problems under <code>## Follow-ups</code>, and the factory collects them, once each, in <code>factory/followups.md</code>. Nothing there is built on its own. When two jobs have deferred the same issue, the factory marks it <code>(proposed)</code> and asks whether to add it to the backlog. You decide, and you can delete or promote any line yourself.</p>
 <h3 id="unattended">Let it run on its own, and answer once at the end</h3>
 <p>Instead of repeating <code>next</code>, run <code>/software-factory:factory run</code> after the plan is approved. It works through the whole backlog on its own, one job at a time, using the same loop and the same bars (reviews, triage, tests, approver). A job that needs you is <b>parked</b>, not waited on: its question goes to <code>factory/inbox.md</code> and <code>inbox.json</code>, and the run carries on with every item that does not depend on it. Items that do depend on a parked job simply wait.</p>
 <ul>
@@ -246,7 +298,7 @@ claude
 <pre><code>&gt; /software-factory:factory rework 003-roles-page hide the page until the membership check passes</code></pre>
 <p>There are at most two review rounds per cycle. <code>/software-factory:factory approve &lt;id&gt;</code> is only for a job already in <code>needs-human</code>. The factory shows you <code>decision.md</code> before it merges.</p>
 
-<h2 id="loop">9. What happens inside one job</h2>
+<h2 id="loop">10. What happens inside one job</h2>
 <div class="flow">
   <span class="step">1 Spec</span><span class="arrow">→</span>
   <span class="step">2 Gate</span><span class="arrow">→</span>
@@ -275,7 +327,7 @@ claude
 </table>
 <p>Quick track is for a small, obvious change in one area. Full track is for auth, data, several areas, or a UI flow. Security hardening of untrusted input is written as an acceptance criterion, so it is tested rather than left as a suggestion.</p>
 
-<h2 id="commands">10. Commands</h2>
+<h2 id="commands">11. Commands</h2>
 <table>
   <tr><th>Command</th><th>Use it when</th></tr>
   <tr><td><code>/software-factory:init</code></td><td>Once per project, empty or existing</td></tr>
@@ -288,13 +340,14 @@ claude
   <tr><td><code>/software-factory:factory status</code></td><td>You want each job’s stage, track and verdicts</td></tr>
   <tr><td><code>/software-factory:factory approve &lt;id&gt;</code></td><td>You have read <code>decision.md</code> and want a paused job merged</td></tr>
   <tr><td><code>/software-factory:factory rework &lt;id&gt; &lt;note&gt;</code></td><td>You want the builder to change course, then be reviewed again</td></tr>
+  <tr><td><code>/software-factory:factory signoff &lt;id&gt; [note]</code></td><td>You have checked a job's <code>[sign-off]</code> criteria and want to record that now, while it is still being built</td></tr>
   <tr><td><code>/software-factory:factory retro</code></td><td>You want lessons from finished jobs</td></tr>
   <tr><td><code>/software-factory:brainstorm [topic]</code></td><td>The idea is still a sentence and you want options before a plan</td></tr>
   <tr><td><code>/software-factory:grill [topic]</code></td><td>You want a plan, idea or spec stress-tested until nothing important is assumed</td></tr>
 </table>
-<p>With no topic, grill uses the current conversation or the latest artifact (<code>docs/vision.md</code> or a job’s <code>spec.md</code>).</p>
+<p>For how brainstorm and grill differ, and when the factory runs them for you, see <a href="#skills">The four skills</a>. With no topic, grill uses the current conversation or the latest artifact (<code>docs/vision.md</code> or a job’s <code>spec.md</code>).</p>
 
-<h2 id="files">11. Files you will see</h2>
+<h2 id="files">12. Files you will see</h2>
 <pre><code>CLAUDE.md                     facts agents cannot learn from the code; test command
 docs/
   vision-input.md             the words you typed into /software-factory:factory plan
@@ -303,21 +356,27 @@ docs/
   intent.md                   the chosen direction, ready for the planner
   vision.md  product-brief.md
   architecture.md  decisions.md  epics.md
-  answers.md  plan-notes.md
+  open-questions.md           the planner's questions for you (first line QUESTIONS: n)
+  claude-md-proposal.md       CLAUDE.md lines the planner proposes; applied only after you approve
+  answers.md  plan-notes.md   your answers to planner questions; your notes at a planning gate
 factory/
   board.json                  job stages; only the orchestrator writes this
   backlog.md                  the queue for next and run (B-ids, [E] epics, depends:)
   inbox.md  inbox.json        parked jobs waiting for you (written by run); inbox.json drives the dashboard buttons
   actions.jsonl               what you clicked on the dashboard; written only by server.py
   actions-applied.json        what apply has done with those clicks; written only by the orchestrator
+  followups.md                out-of-scope issues reviewers raised; you promote them to the backlog
   learnings.md                lessons from retros
+  retro-proposal.md           the latest retro's proposals, waiting for your approval
   dashboard.html              live board
   server.py                   local server for the dashboard; queues your clicks
   userguide.html              shorter copy of this guide, written by init
   jobs/&lt;id&gt;/
     spec.md  build.md  decision.md  verify.md  branch.diff
+    grill-log.md  answers.md  only when the spec had open decisions, a sign-off or your dashboard answers
     round-1/  security.md  ux.md  ui.md  code.md  triage.md
-    round-2/  ...</code></pre>
+    round-2/  ...
+.claude/settings.local.json   the merge permission, if you allowed it at init (not committed)</code></pre>
 <p>The first line of a result file is fixed, so the orchestrator can route without reading the essay underneath:</p>
 <table>
   <tr><th>File</th><th>First line</th></tr>
@@ -327,15 +386,15 @@ factory/
   <tr><td><code>verify.md</code></td><td><code>VERIFY: PASS</code> or <code>VERIFY: FAIL</code></td></tr>
 </table>
 
-<h2 id="dashboard">12. Watch the board</h2>
+<h2 id="dashboard">13. Watch the board</h2>
 <pre><code>python3 factory/server.py
 # open the exact URL it prints, e.g. http://127.0.0.1:8000/dashboard.html#t=...</code></pre>
 <p>The part after <code>#t=</code> is a token created each time the server starts; the page keeps it for that tab and uses it to queue actions. The server listens on 127.0.0.1 only. If the page is opened without the token, or served with <code>python3 -m http.server</code>, it is read-only and its buttons copy the equivalent command instead.</p>
 <p>The page polls <code>board.json</code> every few seconds. Columns are the stages: spec, build, review, triage, decision, needs-human, done. Each card shows the track and a chip per reviewer (<span class="pass">PASS</span>, <span class="chg">CHANGES</span>, or pending). Amber means the job is waiting on you. Open a card to read the spec, build notes, reviews, triage and decision. Opening <code>dashboard.html</code> as a file will not load the board; it has to be served.</p>
 <p>Above the board you also get: a <b>run banner</b> (state, done/in flight/parked counts, why it stopped, a Resume button), <b>Needs you</b> (parked jobs with clickable options, see <a href="#clicks">Answer from the dashboard</a>), the <b>backlog queue</b> (done, active, ready, waiting, parked, blocked) and <b>epic progress</b>.</p>
-<p>What a click can and cannot do: it can queue exactly three things, <b>approve</b> a parked job, <b>rework</b> it with your note, or <b>resume</b> a stopped run, and only for a job that is waiting on you. It cannot write <code>board.json</code>, merge, or run anything by itself. The server refuses other hosts and origins and any request without the token, and <code>apply</code> validates again before acting.</p>
+<p>What a click can and cannot do: it can queue exactly four things. It can <b>approve</b> a parked job, <b>rework</b> it with your note, <b>sign off</b> a job's <code>[sign-off]</code> criteria while it builds, or <b>resume</b> a stopped run, and only for a job that is actually waiting on that action. It cannot write <code>board.json</code>, merge, or run anything by itself. The server refuses other hosts and origins and any request without the token, and <code>apply</code> validates again before acting.</p>
 
-<h2 id="role">13. What to keep doing yourself</h2>
+<h2 id="role">14. What to keep doing yourself</h2>
 <ul>
   <li><b>Write the outcome.</b> Who can do what, and how you will know it works. Leave the file layout to the spec and the builder.</li>
   <li><b>Stay available at the gates.</b> Planning has three approvals. Jobs stop when a choice is actually yours. Answering before code is written is cheaper than reviewing the wrong build.</li>
@@ -345,7 +404,7 @@ factory/
   <li><b>Leave finished job folders in place.</b> Later builds, reviews and retros read them.</li>
 </ul>
 
-<h2 id="trouble">14. Troubleshooting</h2>
+<h2 id="trouble">15. Troubleshooting</h2>
 <table>
   <tr><th>What you see</th><th>What to do</th></tr>
   <tr><td>The job stops at <code>needs-human</code> immediately</td><td>Open <code>spec.md</code>. Either the test command in <code>CLAUDE.md</code> is still <code>&lt;TBD&gt;</code>, or <b>Open decisions</b> is not empty. Answer, then let the spec run again.</td></tr>
@@ -355,7 +414,9 @@ factory/
   <tr><td>A click shows “Queued” but nothing happens</td><td>Queued is not applied. Run <code>/software-factory:factory apply</code> in your Claude session.</td></tr>
   <tr><td>“Not queued: job is not waiting for a human”</td><td>The board moved on after the page loaded. Wait for the next refresh.</td></tr>
   <tr><td>A review file never appears</td><td>The round waits until every expected reviewer has written a file. A malformed first line is re-run once.</td></tr>
-  <tr><td>The merge fails</td><td>A later job changed the same files. <code>/software-factory:factory rework &lt;id&gt; rebase onto the default branch and resolve the conflicts</code>.</td></tr>
+  <tr><td>The merge fails with a conflict</td><td>Another job changed the same files first. The dashboard flags it on the parked job. Approving still works: your decision is recorded and the job goes back to merge the default branch in and be reviewed again. To do it by hand: <code>/software-factory:factory rework &lt;id&gt; merge the default branch into the branch and keep both sides</code>.</td></tr>
+  <tr><td>Parked as <code>MERGE BLOCKED</code></td><td>Your permission settings refused the merge. Run <code>/software-factory:factory approve &lt;id&gt;</code>, or click <b>Merge the approved branch</b> and run <code>apply</code>. To prevent it, re-run <code>/software-factory:init</code> and allow <code>Bash(git merge --no-ff factory/*)</code>, or add that rule with <code>/permissions</code>.</td></tr>
+  <tr><td>A brainstorm or grill seems to start over</td><td>It resumes only from a log whose frontmatter says <code>status: open</code>. Check <code>docs/brainstorm-log.md</code> or <code>docs/grill-log.md</code>. A log marked <code>complete</code> starts a new session.</td></tr>
   <tr><td>The plan seems to restart</td><td>Run <code>/software-factory:factory plan</code> with no new vision. Approved pass outputs are kept. A pass re-runs only when you give notes or explicitly ask.</td></tr>
 </table>
 

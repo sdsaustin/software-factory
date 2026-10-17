@@ -39,7 +39,7 @@ th{background:var(--code)}
   <h1>Software Factory User Guide</h1>
   <p class="lead">How to ship features with <code>/factory</code>: a spec, a build, four reviewers, a triage step and an approver, all driven by markdown files.</p>
   <nav>
-    <a href="#idea">The idea</a><a href="#workflows">Which workflow?</a><a href="#wf-idea">A: from an idea</a><a href="#wf-existing">B: existing code</a><a href="#plan">Planning detail</a><a href="#setup">Setup</a><a href="#loop">The loop</a><a href="#commands">Commands</a>
+    <a href="#idea">The idea</a><a href="#skills">The skills</a><a href="#workflows">Which workflow?</a><a href="#wf-idea">A: from an idea</a><a href="#wf-existing">B: existing code</a><a href="#plan">Planning detail</a><a href="#setup">Setup</a><a href="#loop">The loop</a><a href="#commands">Commands</a>
     <a href="#example">Worked example</a><a href="#files">Files</a><a href="#agents">Agents</a><a href="#dashboard">Dashboard</a>
     <a href="#human">Your role</a><a href="#tips">Tips</a><a href="#trouble">Troubleshooting</a>
   </nav>
@@ -53,8 +53,19 @@ th{background:var(--code)}
   <li><b>One writer of state.</b> Only the <code>/factory</code> session writes <code>factory/board.json</code>, so the dashboard never sees half-written state.</li>
   <li><b>Process fits the size of the work.</b> Small changes use the <code>quick</code> track; larger ones use <code>full</code>.</li>
   <li><b>You stay in control.</b> Anything uncertain becomes <code>needs-human</code>; nothing risky merges silently.</li>
-  <li><b>It grills before it guesses.</b> When the factory needs decisions (a raw vision, or a spec with open questions) it interviews you with the bundled <code>grill</code> skill: numbered questions in rounds, each with a recommended answer, until nothing is left assumed. You can also run <code>/software-factory:grill &lt;topic&gt;</code> on any idea.</li>
+  <li><b>It grills before it guesses.</b> When the factory needs decisions (a raw vision, or a spec with open questions) it interviews you with the bundled <code>grill</code> skill until nothing is left assumed. Questions come in numbered rounds. Routine ones (<code>[recommend]</code>) carry a suggested answer; product-defining ones (<code>[open]</code>) do not, so the call is yours. You can also run <code>/software-factory:grill &lt;topic&gt;</code> on any idea.</li>
 </ul>
+
+<h2 id="skills">The four skills</h2>
+<table>
+  <tr><th>Skill</th><th>Use it when</th><th>What you get</th></tr>
+  <tr><td><code>/software-factory:init</code></td><td>Once per project. It is safe to re-run.</td><td><code>factory/</code>, the project-context block in <code>CLAUDE.md</code>, your test command (for existing code), and, if you say yes, permission for the factory to merge approved jobs</td></tr>
+  <tr><td><code>/software-factory:factory &lt;command&gt;</code></td><td>Planning, building, answering and merging. Every command in <a href="#commands">Commands</a> belongs to it.</td><td>Specs, branches, reviews, merges; state in <code>factory/board.json</code></td></tr>
+  <tr><td><code>/software-factory:brainstorm [topic]</code></td><td>The idea is still vague, and you need options before decisions</td><td>Many ideas, all yours (the coach adds none), narrowed with MoSCoW into <code>docs/intent.md</code></td></tr>
+  <tr><td><code>/software-factory:grill [topic]</code></td><td>You have a direction, plan or spec and want it stress-tested</td><td>Settled decisions <code>D1, D2, …</code> in <code>docs/grill-log.md</code> and <code>docs/intent.md</code></td></tr>
+</table>
+<p><b>Brainstorm widens; grill narrows.</b> Brainstorm asks one open prompt at a time and works through techniques such as <i>What If</i>, <i>Worst Idea</i> and <i>Role Playing</i>. It narrows the result only at the end, using your own judgments. Grill asks every question it can ask now, numbered, and waits for your answers before the next round. It looks up facts itself and asks you only for decisions. When the idea is vague, run brainstorm and then grill. Both keep a log, so an interrupted session resumes where it stopped. Both end by showing your answers back before adding their own observations.</p>
+<p>The factory also runs them for you. <code>factory plan</code> brainstorms a thin vision, then always grills it unless you say "skip grill". <code>factory document</code> grills you on why the code is the way it is. A job whose spec has open decisions grills you before any code is written. In an unattended <code>factory run</code>, nothing grills mid-job: the question is parked in <code>factory/inbox.md</code>, and the run offers to grill you through the inbox at the end.</p>
 
 <h2 id="workflows">Which workflow do I follow?</h2>
 <table>
@@ -149,7 +160,7 @@ th{background:var(--code)}
   <span class="step">1 Spec</span><span class="arrow">→</span>
   <span class="step">2 Readiness gate</span><span class="arrow">→</span>
   <span class="step">3 Build</span><span class="arrow">→</span>
-  <span class="step">4 Review ×4</span><span class="arrow">→</span>
+  <span class="step">4 Review (2–4)</span><span class="arrow">→</span>
   <span class="step">5 Triage</span><span class="arrow">→</span>
   <span class="step">6 Approve</span><span class="arrow">→</span>
   <span class="step">merged</span>
@@ -161,7 +172,7 @@ th{background:var(--code)}
   <tr><td>3 Build</td><td>builder (Opus)</td><td>Works on branch <code>factory/&lt;id&gt;</code>, writes tests per AC, commits, maps each AC to evidence.</td><td><code>build.md</code> + commits</td></tr>
   <tr><td>4 Review</td><td>security (Opus); ux, ui, code (Sonnet)</td><td>Run in parallel against the diff and the spec's intent. Round is complete only when every file exists.</td><td><code>round-N/*.md</code></td></tr>
   <tr><td>5 Triage</td><td>triager (Sonnet)</td><td>Verifies each finding, sets severity, routes it (see below).</td><td><code>round-N/triage.md</code></td></tr>
-  <tr><td>6 Decide</td><td>approver (Opus)</td><td><span class="pass">APPROVE</span> merges to the default branch (recorded in <code>board.json</code>). <span class="chg">ESCALATE</span> marks <code>needs-human</code>.</td><td><code>decision.md</code></td></tr>
+  <tr><td>6 Decide</td><td>orchestrator, then approver (Opus)</td><td>The orchestrator first re-runs the tests on a clean copy of the branch (<code>verify.md</code>, <code>branch.diff</code>). On <span class="pass">APPROVE</span> the orchestrator merges into the default branch; the approver itself never merges. <span class="chg">ESCALATE</span> marks <code>needs-human</code>.</td><td><code>decision.md</code></td></tr>
 </table>
 
 <h3>Quick vs full track</h3>
@@ -169,7 +180,9 @@ th{background:var(--code)}
   <tr><th></th><th>quick</th><th>full</th></tr>
   <tr><td>When</td><td>Small, obvious, one area</td><td>Touches auth, data, several areas or UI flows</td></tr>
   <tr><td>Reviewers</td><td>security + code</td><td>security + ux + ui + code</td></tr>
+  <tr><td>Adjust in the spec</td><td><code>Extra reviewers: ux</code> or <code>ui</code> adds one</td><td><code>Skip reviewers: ui</code> or <code>ux</code> drops one (never security or code)</td></tr>
 </table>
+<p><b>Sign-off criteria.</b> An acceptance criterion tagged <code>[sign-off]</code> can only be met by a person, for example a product-owner OK or an on-device check. Tests or agents never count. The job builds and is reviewed as usual, then waits for you. Record it early with <code>/factory signoff &lt;id&gt;</code> while the job builds, or at the end with <code>/factory approve &lt;id&gt;</code>.</p>
 
 <h3>How triage routes findings</h3>
 <table>
@@ -184,11 +197,15 @@ th{background:var(--code)}
 <h2 id="commands">Commands</h2>
 <table>
   <tr><th>Command</th><th>Use it to</th></tr>
+  <tr><td><code>/software-factory:init</code></td><td>Set up the factory in a project (once; safe to re-run)</td></tr>
+  <tr><td><code>/software-factory:brainstorm [topic]</code></td><td>Generate options for a vague idea, then narrow them with MoSCoW</td></tr>
+  <tr><td><code>/software-factory:grill [topic]</code></td><td>Stress-test a plan, idea or spec until nothing is left assumed. With no topic, it uses the conversation or the latest <code>vision.md</code> or <code>spec.md</code></td></tr>
+  <tr><td><code>/factory document</code></td><td>Existing code: draft <code>docs/architecture.md</code> and <code>docs/decisions.md</code> from the repo and confirm them with you</td></tr>
   <tr><td><code>/factory &lt;feature&gt;</code></td><td>Run a new job through the whole loop</td></tr>
   <tr><td><code>/factory plan &lt;vision&gt;</code></td><td>Plan a whole product from a vision: brief, architecture decisions, epics, ordered backlog. Run it with no argument to resume.</td></tr>
   <tr><td><code>/factory run [--max-jobs N] [--until E2] [--budget minutes]</code></td><td>Autonomous outer loop: runs every ready backlog item, parks any job that needs a human (questions go to <code>factory/inbox.md</code>, shown in the dashboard), keeps working on independent items, and stops on a circuit breaker. <code>/factory run resume</code> continues after you answer the inbox.</td></tr>
   <tr><td><code>/factory apply</code></td><td>Carry out the approve / rework / resume actions you queued by clicking on the dashboard</td></tr>
-  <tr><td><code>/factory next</code></td><td>Run the first unchecked item in <code>factory/backlog.md</code></td></tr>
+  <tr><td><code>/factory next</code></td><td>Run the first ready item in <code>factory/backlog.md</code> (unchecked, its <code>depends:</code> items done). It is ticked only when its job merges.</td></tr>
   <tr><td><code>/factory status</code></td><td>Print the board: each job's stage, track and verdicts</td></tr>
   <tr><td><code>/factory approve &lt;id&gt;</code></td><td>Merge a <code>needs-human</code> job after you have read its <code>decision.md</code></td></tr>
   <tr><td><code>/factory rework &lt;id&gt; &lt;note&gt;</code></td><td>Send a job back to the builder with your feedback, then re-review</td></tr>
@@ -215,7 +232,7 @@ AC2: Response needs no authentication
 <pre><code>round-1/security.md  VERDICT: PASS
 round-1/code.md      VERDICT: CHANGES   (code.md:  src/health.ts:12 - returns 200 even when shutting down? ...)</code></pre></li>
   <li>The triager checks the code finding, finds it is outside the spec, and writes <code>TRIAGE: CLEAN</code> with that finding marked <code>dismiss: out of scope, see Non-goals</code>.</li>
-  <li>The approver re-runs tests, sees evidence for both ACs, and writes <code>APPROVE</code>. The orchestrator merges with <code>git merge --no-ff</code> and the card moves to <b>done</b>.</li>
+  <li>The orchestrator re-runs the tests on a clean copy of the branch and writes <code>verify.md</code> (<code>VERIFY: PASS</code>). The approver sees evidence for both ACs and writes <code>APPROVE</code>. The orchestrator merges with <code>git merge --no-ff</code> and the card moves to <b>done</b>.</li>
 </ol>
 
 <h3>B. Needs a human</h3>
@@ -231,9 +248,10 @@ round-1/code.md      VERDICT: CHANGES   (code.md:  src/health.ts:12 - returns 20
 
 <h2 id="files">Where everything lives</h2>
 <pre><code>CLAUDE.md                          project context (read by every agent)
-.claude/skills/factory/SKILL.md    the orchestrator's instructions
-.claude/agents/*.md                one file per agent role
+.claude/settings.local.json        the merge permission, if you allowed it at init (not committed)
 docs/                              vision, brief, architecture, decisions, epics (from /factory plan)
+  brainstorm-log.md  grill-log.md  session logs from brainstorm and grill (resumable)
+  intent.md                        the chosen direction and decisions, input to the planner
 factory/
   board.json                       job state (orchestrator writes it)
   backlog.md                       queue for /factory next and /factory run (B-ids, [E] epics, depends:)
@@ -242,11 +260,14 @@ factory/
   actions.jsonl                    clicks from the dashboard (written only by server.py)
   actions-applied.json             what /factory apply did with them (written only by the orchestrator)
   learnings.md                     lessons from retros, read by all agents
+  retro-proposal.md                the latest retro's proposals, waiting for your approval
   followups.md                     out-of-scope issues reviewers raised, for later jobs (you promote them to the backlog)
   dashboard.html                   the live board
   userguide.html                   this page
   jobs/&lt;id&gt;/
     spec.md  build.md  decision.md
+    verify.md  branch.diff         test results and the full diff, gathered for the approver
+    grill-log.md  answers.md       only when the spec had open decisions or you answered from the inbox
     round-1/  security.md ux.md ui.md code.md triage.md
     round-2/  ...</code></pre>
 <p>First-line conventions let the orchestrator read results reliably:</p>
@@ -255,7 +276,9 @@ factory/
   <tr><td>reviews</td><td><code>VERDICT: PASS</code> or <code>VERDICT: CHANGES</code></td></tr>
   <tr><td>triage.md</td><td><code>TRIAGE: CLEAN</code>, <code>PATCH</code> or <code>DECISION</code></td></tr>
   <tr><td>decision.md</td><td><code>APPROVE</code> or <code>ESCALATE</code></td></tr>
+  <tr><td>verify.md</td><td><code>VERIFY: PASS</code> or <code>VERIFY: FAIL</code></td></tr>
 </table>
+<p>The skills and agents live in the installed plugin, not in your project, so updating the plugin updates them.</p>
 
 <h2 id="agents">The agents</h2>
 <table>
@@ -282,7 +305,7 @@ factory/
 <h3>Acting from the dashboard</h3>
 <p>Parked jobs appear under <b>Needs you</b> with their question and options; the recommended option is highlighted. Pick options (or <b>Use recommendations</b>), add a note if you want, and submit. Approve asks to confirm. The click is <b>queued</b> only. Then run:</p>
 <pre><code>&gt; /software-factory:factory apply</code></pre>
-<p>Apply re-validates each action against the current board, re-runs the tests before any merge, and carries out <b>approve</b>, <b>rework</b> or <b>resume</b>. Results appear under <b>Recent actions</b>. Without the token (or with <code>http.server</code>) the buttons copy the equivalent command instead. The server listens on 127.0.0.1 only and can queue just those three actions for jobs that are waiting on you.</p>
+<p>Apply re-validates each action against the current board, re-runs the tests before any merge, and carries out <b>approve</b>, <b>rework</b>, <b>sign off</b> or <b>resume</b>. Results appear under <b>Recent actions</b>. Without the token (or with <code>http.server</code>) the buttons copy the equivalent command instead. The server listens on 127.0.0.1 only and can queue just those four actions, each only for a job that is waiting on it.</p>
 
 <h2 id="human">Your role</h2>
 <ul>
