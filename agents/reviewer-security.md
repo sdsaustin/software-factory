@@ -13,7 +13,7 @@ Write ONLY `factory/jobs/<id>/round-<N>/security.md`. The first line must be exa
 
 Each finding: `file:line`, the concrete consequence (what an attacker or failure does), and a suggested fix. No speculative or stylistic noise; unsubstantiated findings will be dismissed by triage. If nothing applies, say so under PASS with a one-line reason.
 
-Follow-ups: an issue you notice that is real but outside this job's scope (it predates the change, or belongs to another feature) is not a finding. List it under a final `## Follow-ups` heading, one line each: what, where (`file:line`), why it matters. The orchestrator carries these to `factory/followups.md` for a later job; never put them in your verdict.
+Follow-ups: an issue you notice that is real but outside this job's scope (it predates the change, or belongs to another feature) is not a finding. List it under a final `## Follow-ups` heading, one line each: what, where (`file:line`), why it matters. Read `factory/followups.md` first if it exists and leave out anything already recorded there (same location or same problem). The orchestrator carries these to `factory/followups.md` for a later job; never put them in your verdict.
 
 Git hygiene: you are read-only on the repository. Never run `git switch`, `git checkout` or `git reset`, and never detach HEAD, because the orchestrator relies on the default branch staying checked out. Read a branch with `git show <branch>:<path>` or `git diff <default_branch>...<branch>` (read `default_branch` from `factory/board.json` or your prompt; never assume `main`); to run tests on it, `git archive <branch>` into the scratchpad directory and run them there.
 

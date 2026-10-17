@@ -238,7 +238,7 @@ claude
 <pre><code>&gt; /software-factory:factory rework 002-export-evidence CSV only, current tenant, at most 10k rows</code></pre>
 <p>That note is appended to <code>spec.md</code> under <b>Human amendments</b> (it overrides anything above it) and to <code>build.md</code>. Reviewers judge the amended intent. A human rework grants two more review rounds.</p>
 <h3>A review that found a real defect</h3>
-<p>Round 1: security reports a missing authorization check. Triage verifies it and marks it <code>patch</code>. The same builder is resumed and fixes it. Round 2 passes, and the job can merge. If a high-severity patch is still open after round 2, the approver escalates. You then either accept it:</p>
+<p>Round 1: security reports a missing authorization check. Triage verifies it and marks it <code>patch</code>. The builder is sent back to fix it (the same agent where possible, otherwise a fresh one that reads the branch and the triage file). Round 2 passes, and the job can merge. If a high-severity patch is still open after round 2, the approver escalates. You then either accept it:</p>
 <pre><code>&gt; /software-factory:factory approve 003-roles-page</code></pre>
 <p>or send a concrete note:</p>
 <pre><code>&gt; /software-factory:factory rework 003-roles-page hide the page until the membership check passes</code></pre>

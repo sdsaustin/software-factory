@@ -224,7 +224,7 @@ round-1/code.md      VERDICT: CHANGES   (code.md:  src/health.ts:12 - returns 20
 <p>Your note is appended to the spec/build files and the job continues. Answering questions early is cheaper than reviewing the wrong build.</p>
 
 <h3>C. Escalation after review</h3>
-<p>Round 1: security reports a missing authorization check (high). Triage verifies it, marks it <code>patch</code>. The builder is resumed (same <code>builder-&lt;id&gt;</code> agent) and fixes it. Round 2: all pass. If instead round 2 still had a high-severity patch item, the approver would write <code>ESCALATE</code> with a specific question, and you would run:</p>
+<p>Round 1: security reports a missing authorization check (high). Triage verifies it, marks it <code>patch</code>. The builder is sent back (the same agent where possible, otherwise a fresh one that reads the branch and the triage file) and fixes it. Round 2: all pass. If instead round 2 still had a high-severity patch item, the approver would write <code>ESCALATE</code> with a specific question, and you would run:</p>
 <pre><code>&gt; /factory approve 003-roles-page      # accept as is, after reading decision.md
 &gt; /factory rework 003-roles-page ...   # or send it back</code></pre>
 

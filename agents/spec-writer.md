@@ -13,8 +13,9 @@ Write ONLY `factory/jobs/<id>/spec.md` with these sections:
 
 ```
 # <title>
-Track: quick | full   (quick = small, obvious, single area; full = anything touching auth, data, multiple areas, or UI flows)
-Extra reviewers: none | ux | ui | ux, ui   (quick track only: add `ux` when the change has user-facing text, errors or flows, `ui` when it changes layout or visuals; full track always runs all four, so write `none`)
+Track: quick | full
+Extra reviewers: none | ux | ui | ux, ui
+Skip reviewers: none | ux | ui | ux, ui
 ## Intent            why this exists, in 2-4 sentences
 ## Non-goals         explicit exclusions
 ## Acceptance criteria
@@ -26,6 +27,8 @@ AC2: ...
 ## Notes for reviewers   which of security / ux / ui apply (mark N/A with a reason if not)
 ## Red-team notes    (full track only, when the job touches auth, permissions, tenant data, evidence or external input) 3-5 ways an attacker or a careless user could abuse the feature, each tied to an AC that prevents it or an Open decision
 ```
+
+The three lines under the title are read by a program: write each exactly as `Track: quick`, `Extra reviewers: ux` and so on, with nothing after the value; put your reasons in Notes for reviewers. `quick` = small, obvious, single area; `full` = anything touching auth, data, multiple areas, or UI flows. `Extra reviewers` applies to quick track only: add `ux` when the change has user-facing text, errors or flows, `ui` when it changes layout or visuals. `Skip reviewers` applies to full track only: drop `ui` (or `ux`) when the change has nothing it could review, for example `ui` on a terminal-only change with no layout; security and code are never skipped. Write `none` for the line that does not apply.
 
 Open decisions are expensive: each one stops the job for a human. Use them ONLY for product or policy choices that materially change scope or behavior and have no safe default (for example which formats to export, who may see the data). If a safe default exists, DECIDE it: put it under Assumptions with the default and its consequence, and the human can override it. Security hardening for untrusted input (output escaping, size limits, same-origin checks, rate or storage caps) is never an open decision: make it an acceptance criterion, and note any trade-off under Assumptions. Resource and abuse limits get a sensible default value in the AC.
 

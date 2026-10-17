@@ -249,7 +249,12 @@ function renderInbox(){
 function runExtras(run){
   let h="";
   if(PENDING.length) h+=`<div class="reason"><b>${PENDING.length} queued action${PENDING.length>1?"s":""}</b> waiting. Run <code>${CMD} apply</code> in your Claude session. <button data-act="copytext" data-text="${esc(CMD+" apply")}">Copy command</button></div>`;
-  if(run&&run.status==="stopped"&&!PENDING.some(a=>a.type==="resume")) h+=`<div class="reason"><button class="prim" data-act="resume">${canQueue()?"Queue: resume run":"Copy: resume command"}</button></div>`;
+  if(run&&run.status==="stopped"&&!PENDING.some(a=>a.type==="resume")){
+    /* Resuming only helps when some backlog item can start; otherwise say what is in the way. */
+    const ready=ITEMS.filter(i=>i.status==="ready").length, parked=JOBS.filter(j=>j.stage==="needs-human").length;
+    if(ready) h+=`<div class="reason"><button class="prim" data-act="resume">${canQueue()?"Queue: resume run":"Copy: resume command"}</button></div>`;
+    else if(parked) h+=`<div class="reason empty">Nothing can run yet: every remaining item is waiting on a parked job. Answer the ${parked>1?"entries":"entry"} under <b>Needs you</b> first; resuming now would stop again.</div>`;
+  }
   return h;
 }
 async function copyText(key,text){
