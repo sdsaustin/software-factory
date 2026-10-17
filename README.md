@@ -24,6 +24,7 @@ In any project:
 /software-factory:factory run [--max-jobs N]             # drain the backlog autonomously; parks jobs that need a human, batches the questions in factory/inbox.md
 /software-factory:factory apply                             # carry out the approve / rework / resume actions you clicked on the dashboard (python3 factory/server.py)
 /software-factory:factory approve <id> | rework <id> <note>
+/software-factory:factory signoff <id> [note]               # sign off a job's [sign-off] criteria early, while it is still being built
 ```
 `init` creates `factory/` (board, backlog, learnings, dashboard, `server.py`, `userguide.html`) and appends a project-context block to `CLAUDE.md`. It never overwrites existing files and is safe to re-run. Projects initialized before 1.5.0 keep their old `dashboard.html`; copy `templates/factory/dashboard.html` and `server.py` into `factory/` by hand to get the action buttons.
 

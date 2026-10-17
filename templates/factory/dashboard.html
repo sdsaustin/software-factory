@@ -197,9 +197,10 @@ function composeNote(e){
 function commandFor(e,type){
   if(type==="resume") return `${CMD} run resume`;
   if(type==="approve") return `${CMD} approve ${e.job}`;
+  if(type==="signoff") return `${CMD} signoff ${e.job}${UI.note[e.job]?" "+UI.note[e.job]:""}`;
   return `${CMD} rework ${e.job} ${composeNote(e)}`;
 }
-const LABEL={approve:"Approve and merge",rework:"Send back to the builder",resume:"Resume run"};
+const LABEL={approve:"Approve and merge",rework:"Send back to the builder",resume:"Resume run",signoff:"Sign off now"};
 function entryHtml(e){
   const job=e.job, d=esc(job), sel=UI.sel[job]||{};
   const pend=PENDING.filter(a=>a.job===job).pop(), v=VERIFY[job];
@@ -207,6 +208,8 @@ function entryHtml(e){
     +(v?` <span class="chip ${/PASS/.test(v)?"PASS":"CHANGES"}">${esc(v)}</span>`:"")
     +(e.blocks&&e.blocks.length?` <span class="dep">blocks ${esc(e.blocks.join(", "))}</span>`:"")+`</div>`;
   if(e.why) h+=`<p class="why">${esc(e.why)}</p>`;
+  if(e.reason==="SIGN-OFF") h+=`<p class="why">The job keeps running while you decide. Signing off records your decision; it still needs review, tests and the approver before it merges.</p>`;
+  if(e.conflicts&&e.conflicts.length) h+=`<p class="why"><b>Conflicts with the default branch</b> in ${esc(e.conflicts.join(", "))}. Approving records your decision and sends the job back to merge the default branch in first, then it is reviewed again.</p>`;
   if(pend){
     return h+`<div class="queued">Queued <b>${esc(pend.type)}</b> (${esc(pend.at)}). Now run <code>${CMD} apply</code> in your Claude session. <button data-act="copytext" data-text="${esc(CMD+" apply")}">Copy command</button></div></div>`;
   }

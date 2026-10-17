@@ -192,6 +192,7 @@ th{background:var(--code)}
   <tr><td><code>/factory status</code></td><td>Print the board: each job's stage, track and verdicts</td></tr>
   <tr><td><code>/factory approve &lt;id&gt;</code></td><td>Merge a <code>needs-human</code> job after you have read its <code>decision.md</code></td></tr>
   <tr><td><code>/factory rework &lt;id&gt; &lt;note&gt;</code></td><td>Send a job back to the builder with your feedback, then re-review</td></tr>
+  <tr><td><code>/factory signoff &lt;id&gt; [note]</code></td><td>Sign off a job's <code>[sign-off]</code> criteria (for example a product-owner OK) while it is still being built; it still needs review and the approver before it merges</td></tr>
   <tr><td><code>/factory retro</code></td><td>Review finished jobs and propose learnings (also offered every 5 done jobs)</td></tr>
 </table>
 
@@ -308,7 +309,7 @@ factory/
   <tr><td>Dashboard buttons say “Copy command”</td><td>Open the exact URL <code>server.py</code> printed, including <code>#t=...</code>. A restarted server prints a new token.</td></tr>
   <tr><td>“Queued” but nothing happened</td><td>Queued is not applied: run <code>/factory apply</code> in your Claude session.</td></tr>
   <tr><td>A review file is missing</td><td>The round is incomplete by design. The orchestrator waits, and re-runs an agent once if its file is malformed.</td></tr>
-  <tr><td>Merge fails</td><td>Another job changed the same files. Run <code>/factory rework &lt;id&gt; rebase on the default branch and resolve conflicts</code>.</td></tr>
+  <tr><td>Merge fails</td><td>Another job changed the same files. The dashboard flags this on the parked job (<b>Conflicts with the default branch</b>). Approving still works: it records your decision and sends the job back to merge the default branch in and be reviewed again. By hand: <code>/factory rework &lt;id&gt; merge the default branch into the branch and keep both sides</code>.</td></tr>
 </table>
 </div>
 </body>

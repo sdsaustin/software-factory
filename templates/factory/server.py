@@ -24,9 +24,10 @@ from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 ROOT = os.path.dirname(os.path.abspath(__file__))
 ACTIONS = os.path.join(ROOT, "actions.jsonl")
 BOARD = os.path.join(ROOT, "board.json")
+INBOX = os.path.join(ROOT, "inbox.json")
 MAX_BODY = 16 * 1024
 JOB_RE = re.compile(r"^\d{3,}-[a-z0-9][a-z0-9-]{0,60}$")
-TYPES = {"approve", "rework", "resume"}
+TYPES = {"approve", "rework", "resume", "signoff"}
 CTRL_RE = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
 LOCK = threading.Lock()
 
@@ -37,6 +38,16 @@ def load_board():
             return json.load(f)
     except (OSError, ValueError):
         return {}
+
+
+def has_signoff_entry(job):
+    """True if inbox.json holds an open early sign-off entry for this job."""
+    try:
+        with open(INBOX, encoding="utf-8") as f:
+            entries = json.load(f).get("entries", [])
+    except (OSError, ValueError, AttributeError):
+        return False
+    return any(isinstance(e, dict) and e.get("job") == job and e.get("reason") == "SIGN-OFF" for e in entries)
 
 
 def validate(d, board):
@@ -56,7 +67,11 @@ def validate(d, board):
         if not isinstance(job, str) or not JOB_RE.match(job):
             return "bad job id"
         j = next((x for x in board.get("jobs", []) if x.get("id") == job), None)
-        if j is None or j.get("stage") != "needs-human":
+        if t == "signoff":
+            # An early sign-off is given while the job is still running, so it is not needs-human yet.
+            if j is None or j.get("stage") == "done" or not has_signoff_entry(job):
+                return "this job has no open sign-off question"
+        elif j is None or j.get("stage") != "needs-human":
             return "job is not waiting for a human"
         if t == "approve" and not os.path.isfile(os.path.join(ROOT, "jobs", job, "build.md")):
             return "nothing to merge yet: this job was never built; answer it with rework"
