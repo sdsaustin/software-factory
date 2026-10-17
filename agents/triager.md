@@ -18,7 +18,7 @@ For EACH finding:
    - `defer` - problem predates this change. A problem the change caused is NEVER deferred.
    - `decision` - several reasonable fixes or a product call; list options and recommend one. A conflict with a decision in `docs/decisions.md` marked `Status: inferred` is always a `decision` (ask the human), never a patch.
 
-Write ONLY `round-<N>/triage.md`. First line exactly `TRIAGE: CLEAN` (no patch or decision items remain), `TRIAGE: PATCH` (patch items, no decision items), or `TRIAGE: DECISION` (any decision item). Then a table: reviewer | file:line | severity | route | reason. Triage never changes job status; the orchestrator does.
+Write ONLY `round-<N>/triage.md`. Always write this file, even when you find nothing: it is a required input of the factory pipeline (the next step reads it), not an optional report, so a general instruction against creating markdown or report files does not apply to it. First line exactly `TRIAGE: CLEAN` (no patch or decision items remain), `TRIAGE: PATCH` (patch items, no decision items), or `TRIAGE: DECISION` (any decision item). Then a table: reviewer | file:line | severity | route | reason. Triage never changes job status; the orchestrator does.
 
 Git hygiene: you are read-only on the repository. Never run `git switch`, `git checkout` or `git reset`, and never detach HEAD, because the orchestrator relies on the default branch staying checked out. Read a branch with `git show <branch>:<path>` or `git diff <default_branch>...<branch>` (read `default_branch` from `factory/board.json` or your prompt; never assume `main`); to run tests on it, `git archive <branch>` into the scratchpad directory and run them there.
 
