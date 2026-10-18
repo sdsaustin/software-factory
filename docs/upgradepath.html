@@ -35,76 +35,71 @@ ol>li,ul>li{margin:6px 0}
 <div class="wrap">
 <header>
   <h1>Upgrade path</h1>
-  <p class="lead">Moving a project that is already part-built from an older <code>software-factory</code> plugin (for example 1.3.x) to the current version (1.7.x), and carrying on where you left off. Worked example: 54 backlog items, 5 built.</p>
+  <p class="lead">Moving a project that an older <code>software-factory</code> plugin set up (any version from 1.3.0) to the current version (1.8.x), and carrying on where you left off. In short: update the plugin, restart Claude Code, run <code>/software-factory:init</code>.</p>
 </header>
 <nav>
-  <a href="#why">Why it works</a><a href="#checks">1 Pre-flight</a><a href="#plugin">2 Upgrade the plugin</a><a href="#files">3 Refresh project files</a><a href="#deps">4 Add dependencies</a><a href="#first">5 First run</a><a href="#resume">Resuming by state</a><a href="#rollback">Rollback</a><a href="#risks">Risks</a>
+  <a href="#why">Why it works</a><a href="#plugin">1 Update the plugin</a><a href="#init">2 Run init</a><a href="#deps">3 Dependencies</a><a href="#first">4 First run</a><a href="#resume">Resuming by state</a><a href="#rollback">Rollback</a><a href="#manual">Manual upgrade</a><a href="#risks">Risks</a>
 </nav>
 
 <h2 id="why">Why an upgrade does not break a project in progress</h2>
-<p>All state lives in your project, not in the plugin: <code>factory/board.json</code>, <code>backlog.md</code>, <code>learnings.md</code>, <code>factory/jobs/&lt;id&gt;/…</code>, <code>docs/…</code>, and the job branches in git. The plugin supplies only the instructions (skills and agents). Every field added since 1.3.6 is optional, so an old <code>board.json</code> is valid as it stands and needs no migration. Old backlog lines such as <code>- [ ] [E1] text</code> keep working: they get positional ids and no dependencies.</p>
+<p>All state lives in your project, not in the plugin: <code>factory/board.json</code>, <code>backlog.md</code>, <code>learnings.md</code>, <code>factory/jobs/&lt;id&gt;/…</code>, <code>docs/…</code>, and the job branches in git. The plugin supplies the instructions (skills and agents) and three files it copies into <code>factory/</code>: <code>dashboard.html</code>, <code>server.py</code> and <code>userguide.html</code>. Every field added to <code>board.json</code> since 1.3.0 is optional, so an old board is valid as it stands. Old backlog lines such as <code>- [ ] [E1] text</code> keep working: they get positional ids and no dependencies.</p>
+<p>From 1.8.0 the board records which plugin version last set the project up (<code>plugin_version</code>). Every factory command compares it with the plugin that is running and prints one line when they differ: <i>run init to upgrade</i> if the project is older, <i>update your plugin</i> if a teammate upgraded it with a newer one. It never blocks a command. Projects from before 1.8.0 have no stamp and get the same one-line reminder.</p>
 <table>
   <tr><th>Version</th><th>What changed</th><th>What it needs from an existing project</th></tr>
-  <tr><td>1.4.0</td><td><code>/factory run</code>, headless specs, parking into <code>inbox.md</code>, <code>B&lt;n&gt;</code> ids and <code>depends:</code>, dashboard run panels</td><td>Nothing mandatory. Add ids and dependencies to the backlog to make <code>run</code> safe (step 4). Refresh the dashboard file.</td></tr>
+  <tr><td>1.4.0</td><td><code>/factory run</code>, headless specs, parking into <code>inbox.md</code>, <code>B&lt;n&gt;</code> ids and <code>depends:</code>, dashboard run panels</td><td>Nothing mandatory. Add ids and dependencies to the backlog to make <code>run</code> safe (init numbers them; it offers to propose dependencies). Refresh the dashboard file.</td></tr>
   <tr><td>1.4.1</td><td>Default branch re-checked after every agent; reviewers read-only on git; patch-round spec amendments; backlog ticked only on merge</td><td>Nothing</td></tr>
   <tr><td>1.4.2</td><td>Verification from <code>git archive</code> instead of <code>git switch</code></td><td>Nothing</td></tr>
-  <tr><td>1.5.0</td><td>Dashboard actions: <code>inbox.json</code>, <code>server.py</code>, <code>/factory apply</code></td><td>Copy <code>dashboard.html</code> and <code>server.py</code> into <code>factory/</code> (step 3)</td></tr>
-  <tr><td>1.5.1 – 1.5.8</td><td>Sandbox fixes; <code>Extra reviewers:</code> / <code>Skip reviewers:</code>, <code>[sign-off]</code> criteria, <code>factory/followups.md</code>, Markdown file viewer in the dashboard</td><td>Refresh <code>dashboard.html</code> (step 3). Old specs without the new lines still work.</td></tr>
-  <tr><td>1.5.9</td><td>Early sign-off (<code>/factory signoff</code>, a <code>signoff</code> dashboard action), conflict re-check of parked jobs, <code>retro.done_since</code> counter</td><td>Refresh <code>dashboard.html</code> and <code>server.py</code> (step 3); the server rejects <code>signoff</code> otherwise. A missing <code>retro</code> field in <code>board.json</code> is added when first needed.</td></tr>
-  <tr><td>1.6.0</td><td>In a run the outer loop does the merge; <code>MERGE BLOCKED</code> parking; planning progress on the dashboard; grill updates a brainstorm <code>intent.md</code></td><td>Refresh <code>dashboard.html</code> (step 3)</td></tr>
-  <tr><td>1.6.1 – 1.6.2</td><td><code>init</code> offers the merge permission; <code>Docs files:</code> spec line; follow-ups from every round</td><td>Re-run <code>/software-factory:init</code> once to be asked about the merge permission (it changes nothing else in an initialized project)</td></tr>
-  <tr><td>1.7.0</td><td>Feature-plan mode: <code>/factory plan &lt;capability&gt;</code> on a documented product; <code>run</code> works on hand-written backlogs; test-harness items</td><td>Nothing mandatory. A plan in progress keeps running as a product plan. Refresh <code>dashboard.html</code> and <code>userguide.html</code> (step 3) to see the feature name in the planning banner and the new walkthrough. The project-context block in <code>CLAUDE.md</code> is not updated; the agents carry the new rules themselves.</td></tr>
+  <tr><td>1.5.0</td><td>Dashboard actions: <code>inbox.json</code>, <code>server.py</code>, <code>/factory apply</code></td><td>Refresh <code>dashboard.html</code>; add <code>server.py</code></td></tr>
+  <tr><td>1.5.1 – 1.5.8</td><td>Sandbox fixes; <code>Extra reviewers:</code> / <code>Skip reviewers:</code>, <code>[sign-off]</code> criteria, <code>factory/followups.md</code>, Markdown file viewer in the dashboard</td><td>Refresh <code>dashboard.html</code>. Old specs without the new lines still work.</td></tr>
+  <tr><td>1.5.9</td><td>Early sign-off (<code>/factory signoff</code>, a <code>signoff</code> dashboard action), conflict re-check of parked jobs, <code>retro.done_since</code> counter</td><td>Refresh <code>dashboard.html</code> and <code>server.py</code>; the server rejects <code>signoff</code> otherwise. A missing <code>retro</code> field in <code>board.json</code> is added when first needed.</td></tr>
+  <tr><td>1.6.0</td><td>In a run the outer loop does the merge; <code>MERGE BLOCKED</code> parking; planning progress on the dashboard; grill updates a brainstorm <code>intent.md</code></td><td>Refresh <code>dashboard.html</code></td></tr>
+  <tr><td>1.6.1 – 1.6.2</td><td><code>init</code> offers the merge permission; <code>Docs files:</code> spec line; follow-ups from every round</td><td>The merge-permission question (init asks it)</td></tr>
+  <tr><td>1.7.0</td><td>Feature-plan mode: <code>/factory plan &lt;capability&gt;</code> on a documented product; <code>run</code> works on hand-written backlogs; test-harness items</td><td>Nothing mandatory. A plan in progress keeps running as a product plan. Refresh <code>dashboard.html</code> and <code>userguide.html</code> to see the feature name in the planning banner and the new walkthrough. The project-context block in <code>CLAUDE.md</code> is not updated; the agents carry the new rules themselves.</td></tr>
   <tr><td>1.7.1</td><td>Backlog lines capped at 20 words; the planner replaces its own lines when a feature pass re-runs on notes</td><td>Nothing</td></tr>
-  <tr><td>1.7.2</td><td>Documentation only</td><td>Optionally refresh <code>userguide.html</code> (step 3)</td></tr>
+  <tr><td>1.7.2</td><td>Documentation only</td><td>Refresh <code>userguide.html</code></td></tr>
+  <tr><td>1.8.0</td><td>Re-running <code>/software-factory:init</code> upgrades an initialized project; <code>plugin_version</code> in <code>board.json</code>; every factory command warns when the project and plugin versions differ; <code>rework</code> recovers a job left mid-stage</td><td>Run init once (this page). It does everything in the column above.</td></tr>
 </table>
 
-<h2 id="checks">1. Pre-flight (before touching anything)</h2>
+<h2 id="plugin">1. Update the plugin</h2>
 <ol>
-  <li>Let any running agent finish, or stop it.</li>
-  <li>Commit or stash everything outside <code>factory/</code>, <code>docs/</code> and <code>CLAUDE.md</code>, and check out your default branch. Builders often leave the job branch checked out, and the preflight refuses to start otherwise.</li>
-  <li>Back up the state: <pre><code>cp -r factory factory.bak</code></pre></li>
-  <li>Confirm nothing is half-done. Every job in <code>factory/board.json</code> should be <code>done</code> or <code>needs-human</code>. Anything in <code>spec</code>, <code>build</code>, <code>review</code>, <code>triage</code> or <code>decision</code> was caught mid-flight; see <a href="#resume">Resuming by state</a>.</li>
-  <li>Check that the done jobs and the ticked backlog lines agree. The old <code>next</code> ticked a line when a job <i>started</i>, so a <code>[x]</code> line whose job is not <code>done</code> is a stuck job. Fix it before going on.</li>
+  <li>Open <code>/plugin</code>, go to <b>Installed</b>, and update <code>software-factory</code>. If no newer version is offered, update the marketplace first (<b>Marketplaces</b> in the same menu).</li>
+  <li>Restart Claude Code (or run <code>/reload-plugins</code>). Skills load when a session starts.</li>
+  <li>Optional check: <pre><code>grep -A3 software-factory ~/.claude/plugins/installed_plugins.json</code></pre> The <code>installPath</code> ends in the new version. Old versions may stay in <code>~/.claude/plugins/cache/</code>; init and the factory read the installed path, never the first folder a search finds, so they cannot pick up an old copy.</li>
 </ol>
 
-<h2 id="plugin">2. Upgrade the plugin</h2>
+<h2 id="init">2. Run init in the project</h2>
+<pre><code>/software-factory:init</code></pre>
+<p>On a project that already has <code>factory/board.json</code>, init runs as an upgrade:</p>
 <ol>
-  <li>Open <code>/plugin</code>, go to <b>Installed</b>, and update <code>software-factory</code>. If no newer version is offered, refresh the marketplace first (<code>/plugin marketplace update software-factory</code>). Go by what the menu shows; these exact update commands were not tested for this document.</li>
-  <li>Restart Claude Code. Skills load when a session starts.</li>
-  <li>Confirm the version: <pre><code>grep -A3 software-factory ~/.claude/plugins/installed_plugins.json</code></pre> The <code>installPath</code> should end in the new version, the <code>version</code> in the plugin's <code>.claude-plugin/plugin.json</code> (for example <code>1.6.2</code>).</li>
+  <li><b>Version check.</b> If the project was upgraded by a newer plugin than yours, it stops and asks you to update your plugin instead.</li>
+  <li><b>Default branch.</b> It needs your default branch checked out, since factory state is only committed there.</li>
+  <li><b>One summary, one question.</b> It lists what it would change: plugin-owned files that are missing or differ, fields missing from <code>board.json</code>, the backlog header and ids, and the diff of the <code>## Software factory</code> section of <code>CLAUDE.md</code>. Answer yes, no, or yes with exceptions (“yes, but not CLAUDE.md”). If a run is marked <code>running</code>, or a job is in <code>spec</code>, <code>build</code>, <code>review</code>, <code>triage</code> or <code>decision</code>, the summary lists them and your yes must also confirm that no other Claude session is working in the project (a crashed session counts as not working). When there is nothing to change, it asks nothing beyond the merge-permission question, and that only if the rule is missing.</li>
+  <li><b>Snapshot, then apply.</b> Uncommitted factory state is committed first as <code>factory: before upgrade to &lt;version&gt;</code>, so one <code>git revert</code> undoes the upgrade. Then the changes are made.</li>
+  <li><b>Dependencies</b> (offer, see step 3) and the <b>merge permission</b> question, skipped if the rule is already there.</li>
+  <li><b>Report.</b> What changed, any backlog lines that look stuck, every job still waiting with the command that continues it, and an offer to commit <code>factory: upgrade to &lt;version&gt;</code>.</li>
 </ol>
-
-<h2 id="files">3. Refresh the project files</h2>
-<p><code>/software-factory:init</code> never overwrites existing files, so your project keeps the old dashboard until you copy the new files over. Find the plugin folder with <code>find ~/.claude/plugins -type d -path '*software-factory*/templates/factory'</code>, then:</p>
-<pre><code>cp &lt;plugin&gt;/templates/factory/dashboard.html  factory/
-cp &lt;plugin&gt;/templates/factory/server.py       factory/
-cp &lt;plugin&gt;/templates/factory/userguide.html  factory/</code></pre>
 <table>
-  <tr><th>File</th><th>Action</th></tr>
-  <tr><td><code>dashboard.html</code>, <code>server.py</code>, <code>userguide.html</code></td><td>Copy from the plugin</td></tr>
-  <tr><td><code>board.json</code>, <code>backlog.md</code>, <code>learnings.md</code>, <code>jobs/</code></td><td>Leave alone. These are your state.</td></tr>
-  <tr><td><code>inbox.md</code>, <code>inbox.json</code>, <code>actions.jsonl</code>, <code>actions-applied.json</code>, <code>followups.md</code></td><td>Do not create. The orchestrator and the server create them when needed.</td></tr>
+  <tr><th>What</th><th>Upgrade does</th></tr>
+  <tr><td><code>dashboard.html</code>, <code>server.py</code>, <code>userguide.html</code></td><td>Replaced from the running plugin when they differ, created when missing. Local edits are lost but stay in git history. Restart a running <code>server.py</code>.</td></tr>
+  <tr><td><code>board.json</code></td><td>Adds missing <code>default_branch</code>, <code>run</code> and <code>retro</code>; sets <code>plugin_version</code>. Jobs, plans, features and runs are not touched.</td></tr>
+  <tr><td><code>backlog.md</code></td><td>Replaces the header comment. If no line has an id, numbers every line <code>B1</code>, <code>B2</code>, … in order and changes nothing else. A mix of numbered and unnumbered lines is listed for you to fix.</td></tr>
+  <tr><td><code>CLAUDE.md</code></td><td>Replaces only the <code>## Software factory</code> section. Policy, run commands, conventions, pitfalls and your own sections are never edited.</td></tr>
+  <tr><td><code>learnings.md</code>, <code>jobs/</code>, <code>docs/</code>, <code>inbox.*</code>, <code>followups.md</code></td><td>Never touched. Missing <code>learnings.md</code> or <code>jobs/.gitkeep</code> are created.</td></tr>
 </table>
-<p>Then re-run <code>/software-factory:init</code>. It skips every file that already exists, and from 1.6.1 it asks whether the factory may merge approved jobs in this project. Say yes, unless you want to click every merge yourself. Without the rule, Claude Code's permission check can refuse a run's merge and park the job as <code>MERGE BLOCKED</code>.</p>
+<p>Running init again changes nothing; it says the project is up to date.</p>
 
-<h2 id="deps">4. Add dependencies to the backlog (the step that matters for a long backlog)</h2>
-<p>Your backlog lines have no ids and no prerequisites, so <code>/factory run</code> treats every item as independent. If item 12 is parked for a human and item 13 really needs it, the run would still build 13 on a base that does not exist. Annotate the backlog first.</p>
-<div class="callout warn"><b>Do not re-run the planner for this.</b> Planner Pass 3 regenerates the backlog. Ask Claude in an ordinary session to edit <code>backlog.md</code> in place.</div>
-<pre><code>Edit factory/backlog.md only. Give each line an id B1..B54 in order (keep the lines that are
-already [x] exactly as they are). Add "(depends: B..)" only where an item truly cannot be built
-or tested without another; use docs/epics.md and docs/architecture.md to decide. Do not change
-any wording or any checkbox. Then list the dependencies you added so I can review them.</code></pre>
-<p>Read the result before accepting it:</p>
+<h2 id="deps">3. Dependencies in the backlog (the step that matters for a long backlog)</h2>
+<p>A backlog without <code>depends:</code> makes <code>/factory run</code> treat every item as independent. If item 12 is parked for a human and item 13 really needs it, the run would still build 13 on a base that does not exist. When no line has a dependency and two or more are open, init offers to propose them from <code>docs/epics.md</code> and <code>docs/architecture.md</code>, and adds them only after you agree. Read the list before accepting it:</p>
 <ul>
   <li>Too few links is risky: a parked job will not stop items that need it.</li>
   <li>Too many links is wasteful: one parked job then blocks everything after it. Independent items should not be chained.</li>
   <li>Dependencies must point to earlier ids and must not form a cycle.</li>
 </ul>
-<p>If you skip this step, use <code>/software-factory:factory next</code> one job at a time instead of <code>run</code>.</p>
+<div class="callout warn"><b>Do not re-run the planner for this.</b> Product planning Pass 3 regenerates the backlog. If you skip the dependencies, use <code>/software-factory:factory next</code> one job at a time instead of <code>run</code>.</div>
 
-<h2 id="first">5. First run with the new features</h2>
+<h2 id="first">4. First run with the new features</h2>
 <ol>
-  <li><b>Start the dashboard.</b> Stop any old <code>python3 -m http.server</code> first, then:
+  <li><b>Start the dashboard.</b> Stop any old <code>server.py</code> or <code>python3 -m http.server</code> first, then:
     <pre><code>python3 factory/server.py</code></pre>
     Open the exact URL it prints, including the <code>#t=…</code> part; that token is what lets the page queue actions. It listens on 127.0.0.1 only and tries ports 8000 to 8020.</li>
   <li><b>Start small.</b> Do not begin with all remaining items:
@@ -121,41 +116,36 @@ any wording or any checkbox. Then list the dependencies you added so I can revie
   <tr><td><code>--until E2</code> or <code>--until B20</code></td><td>Stop at an epic or item boundary</td></tr>
   <tr><td><code>--budget &lt;minutes&gt;</code></td><td>Cap wall-clock time</td></tr>
 </table>
-<p>The run stops by itself when nothing is ready, when a limit is reached, when two jobs in a row are parked (usually one systemic problem), when the default branch fails its tests after a merge, or when your permission settings refuse a merge (<code>MERGE BLOCKED</code>; allowing the merge rule in step 3 prevents it).</p>
+<p>The run stops by itself when nothing is ready, when a limit is reached, when two jobs in a row are parked (usually one systemic problem), when the default branch fails its tests after a merge, or when your permission settings refuse a merge (<code>MERGE BLOCKED</code>; the merge rule init offers prevents it).</p>
 
 <h2 id="resume">Resuming by state</h2>
 <table>
   <tr><th>Where it stopped</th><th>How to resume</th></tr>
-  <tr><td>Planning (<code>plan.status</code> in <code>board.json</code>)</td><td><code>/software-factory:factory plan</code> with no vision. It continues from the board and keeps approved passes.</td></tr>
+  <tr><td>Planning (<code>plan.status</code> in <code>board.json</code>)</td><td><code>/software-factory:factory plan</code> with no text. It continues from the board and keeps approved passes.</td></tr>
   <tr><td>A job in <code>needs-human</code></td><td><code>/software-factory:factory approve &lt;id&gt;</code> or <code>rework &lt;id&gt; &lt;note&gt;</code>, or click it on the dashboard and run <code>apply</code>.</td></tr>
   <tr><td>Between jobs (nothing in flight)</td><td><code>/software-factory:factory next</code>, or <code>run</code> to drain the rest.</td></tr>
   <tr><td>A run that was stopped or crashed</td><td><code>/software-factory:factory run resume</code> (state is read from <code>board.json</code> <code>run</code> and the backlog).</td></tr>
-  <tr><td><b>Mid-job</b> (stage <code>spec</code>, <code>build</code>, <code>review</code>, <code>triage</code> or <code>decision</code>)</td><td><b>No automatic resume.</b> See below.</td></tr>
+  <tr><td><b>Mid-job</b> (stage <code>spec</code>, <code>build</code>, <code>review</code>, <code>triage</code> or <code>decision</code>, and no session working on it)</td><td><code>/software-factory:factory rework &lt;id&gt; resume after interruption</code>. A job still in <code>spec</code> gets its spec redone; a later stage goes back to the builder with a fresh review round. Every agent run starts clean from files, so redoing a step loses nothing.</td></tr>
 </table>
-<h3>Recovering a job caught mid-stage (manual)</h3>
-<p>Look in <code>factory/jobs/&lt;id&gt;/</code> to see how far it got:</p>
-<ul>
-  <li>Only <code>spec.md</code>: the build had not started.</li>
-  <li><code>build.md</code> present: the code is committed on <code>factory/&lt;id&gt;</code>.</li>
-  <li>A <code>round-N/</code> folder with fewer review files than expected: the round was incomplete.</li>
-</ul>
-<p>The simplest safe route: set the job's <code>stage</code> to <code>needs-human</code> in <code>board.json</code> (while no session is running), commit that, then run <code>/software-factory:factory rework &lt;id&gt; &lt;note&gt;</code>. That sends the job back to the builder with a fresh review round. Every subagent run starts clean from files, so redoing a step loses nothing.</p>
 
 <h2 id="rollback">Rollback</h2>
 <ol>
   <li>Stop <code>server.py</code> and any session.</li>
-  <li>Restore the state: <code>rm -rf factory &amp;&amp; mv factory.bak factory</code>.</li>
-  <li>Reinstall the older plugin version if you need the old behavior, then restart Claude Code.</li>
+  <li>Undo the upgrade commit: <code>git revert &lt;the "factory: upgrade to …" commit&gt;</code>. If you did not commit it, <code>git checkout -- factory CLAUDE.md</code> returns to the <code>factory: before upgrade</code> snapshot.</li>
+  <li>Reinstall the older plugin version if you need the old behavior, then restart Claude Code. The factory will remind you that the project is newer than the plugin; that is expected after a rollback of the plugin only.</li>
   <li>Job branches and merges already made are ordinary git history; revert them with git if needed.</li>
 </ol>
 
+<h2 id="manual">Manual upgrade (plugins before 1.8.0 only)</h2>
+<p>You only need this if you cannot install 1.8.0 or later; any later plugin upgrades a project of any older version through init. The manual route is: back up with <code>cp -r factory factory.bak</code>; copy <code>dashboard.html</code>, <code>server.py</code> and <code>userguide.html</code> from the plugin's <code>templates/factory/</code> (take the folder from <code>installPath</code> in <code>~/.claude/plugins/installed_plugins.json</code>, not from a <code>find</code>, which can return an old cached version); give backlog lines <code>B&lt;n&gt;</code> ids and dependencies by hand; re-run init for the merge-permission question.</p>
+
 <h2 id="risks">Known gaps and risks</h2>
-<div class="callout warn">The upgrade itself, and recovery from a crash mid-run, were not tested on a real in-flight project. The loop, parking, dependency skipping, approve-after-answer and the dashboard actions were exercised in a sandbox. Start with <code>--max-jobs 3</code> and compare against your expectations.</div>
+<div class="callout warn">The upgrade was tested in a sandbox on hand-built projects from 1.3.0 and 1.7.0 and on one stamped by a newer plugin, run unattended. It was not tested on a real project with weeks of history. Start with <code>--max-jobs 3</code> after upgrading and compare against your expectations.</div>
 <ul>
   <li>Run isolation (a fresh sub-orchestrator per job), the stop after two parked jobs in a row, and the per-epic retro are not yet exercised (limitation L15 in the architecture document).</li>
   <li>Dashboard clicks only queue actions; nothing happens until you run <code>/factory apply</code> (L13).</li>
-  <li>Edit <code>board.json</code> and <code>backlog.md</code> only between runs. The orchestrator is the only writer of <code>board.json</code> while a session is active.</li>
-  <li>The old dashboard will not show the new panels until step 3 is done.</li>
+  <li>Edit <code>board.json</code> and <code>backlog.md</code> only between runs. The orchestrator is the only writer of <code>board.json</code> while a session is active; init writes it only after you confirm nothing is running.</li>
+  <li>Local edits to <code>dashboard.html</code>, <code>server.py</code> or <code>userguide.html</code> are replaced. Keep customisations elsewhere, or answer “yes, but not &lt;file&gt;”.</li>
 </ul>
 <p>Related: <a href="userguide.html">User guide</a> · <a href="factoryarchitecture.html">Architecture</a></p>
 </div>

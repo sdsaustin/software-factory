@@ -14,7 +14,7 @@ For local development: `claude --plugin-dir /path/to/software-factory`.
 ## Use
 In any project:
 ```
-/software-factory:init                                  # one-time setup
+/software-factory:init                                  # one-time setup; after a plugin update, run it again to upgrade the project
 /software-factory:factory plan <your vision>            # no code yet: brief, architecture, epics, backlog
 /software-factory:factory <feature>                     # run one feature through the loop
 /software-factory:factory document                      # existing code: draft architecture + decisions from the repo, confirm with you
@@ -27,12 +27,12 @@ In any project:
 /software-factory:factory approve <id> | rework <id> <note>
 /software-factory:factory signoff <id> [note]               # sign off a job's [sign-off] criteria early, while it is still being built
 ```
-`init` creates `factory/` (board, backlog, learnings, dashboard, `server.py`, `userguide.html`), appends a project-context block to `CLAUDE.md`, and asks whether the factory may merge approved jobs (on a yes it adds `Bash(git merge --no-ff factory/*)` to `.claude/settings.local.json`). It never overwrites existing files and is safe to re-run. Projects initialized before 1.5.0 keep their old `dashboard.html`; copy `templates/factory/dashboard.html` and `server.py` into `factory/` by hand to get the action buttons.
+`init` creates `factory/` (board, backlog, learnings, dashboard, `server.py`, `userguide.html`), appends a project-context block to `CLAUDE.md`, and asks whether the factory may merge approved jobs (on a yes it adds `Bash(git merge --no-ff factory/*)` to `.claude/settings.local.json`). It is safe to re-run. On a project that is already initialized it runs as an upgrade: after one confirmation it refreshes the plugin-owned files (`dashboard.html`, `server.py`, `userguide.html`, the backlog header and the `## Software factory` section of `CLAUDE.md`), adds missing board fields, numbers an unnumbered backlog, and stamps `plugin_version` in `board.json`; your state (jobs, backlog items, docs, learnings) is never rewritten. Every factory command warns in one line when the project and the plugin versions differ. See [`docs/upgradepath.html`](docs/upgradepath.html).
 
 ## The skills
 | Skill | Use it when |
 |---|---|
-| `init` | Once per project: sets up `factory/` and `CLAUDE.md`, offers the merge permission |
+| `init` | Once per project: sets up `factory/` and `CLAUDE.md`, offers the merge permission. Again after each plugin update: upgrades the project |
 | `factory` | Everything else: `plan` (a product, or one capability on existing code), `document`, `<feature>`, `next`, `run`, `apply`, `approve`, `rework`, `signoff`, `status`, `retro` |
 | `brainstorm` | The idea is vague. It widens: a coach draws out many options from you, one prompt at a time, then you narrow them with MoSCoW into `docs/intent.md` |
 | `grill` | You have a direction. It narrows: numbered rounds of questions (`[recommend]` ones carry a suggested answer, `[open]` product calls do not) until nothing is assumed; decisions go to `docs/grill-log.md` and `docs/intent.md` |
@@ -50,7 +50,7 @@ When the idea is vague, run brainstorm and then grill. `factory plan` runs both 
 | `templates/` | Files copied into the project by `init` |
 | `docs/userguide.html` | User guide: the skills, walkthroughs, commands, files, troubleshooting |
 | `docs/factoryarchitecture.html` | Maintainer reference: architecture, file contracts, flows, invariants |
-| `docs/upgradepath.html` | Upgrading a part-built project from an older plugin version and resuming |
+| `docs/upgradepath.html` | Upgrading a part-built project from an older plugin version (update, restart, `init`) and resuming |
 
 Read [`docs/userguide.html`](docs/userguide.html) for the skills and for walkthroughs: a vague idea through to a shipped product, adding features to existing code (`init` → `document` → `plan <capability>` → `run`), a single small change, and a large capability split into jobs. `init` also copies a shorter guide to `factory/userguide.html` in the project.
 

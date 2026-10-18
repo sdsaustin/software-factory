@@ -59,7 +59,7 @@ th{background:var(--code)}
 <h2 id="skills">The four skills</h2>
 <table>
   <tr><th>Skill</th><th>Use it when</th><th>What you get</th></tr>
-  <tr><td><code>/software-factory:init</code></td><td>Once per project. It is safe to re-run.</td><td><code>factory/</code>, the project-context block in <code>CLAUDE.md</code>, your test command (for existing code), and, if you say yes, permission for the factory to merge approved jobs</td></tr>
+  <tr><td><code>/software-factory:init</code></td><td>Once per project, and again after each plugin update to upgrade the project. It is safe to re-run.</td><td><code>factory/</code>, the project-context block in <code>CLAUDE.md</code>, your test command (for existing code), and, if you say yes, permission for the factory to merge approved jobs</td></tr>
   <tr><td><code>/software-factory:factory &lt;command&gt;</code></td><td>Planning, building, answering and merging. Every command in <a href="#commands">Commands</a> belongs to it.</td><td>Specs, branches, reviews, merges; state in <code>factory/board.json</code></td></tr>
   <tr><td><code>/software-factory:brainstorm [topic]</code></td><td>The idea is still vague, and you need options before decisions</td><td>Many ideas, all yours (the coach adds none), narrowed with MoSCoW into <code>docs/intent.md</code></td></tr>
   <tr><td><code>/software-factory:grill [topic]</code></td><td>You have a direction, plan or spec and want it stress-tested</td><td>Settled decisions <code>D1, D2, …</code> in <code>docs/grill-log.md</code> and <code>docs/intent.md</code></td></tr>
@@ -199,7 +199,7 @@ th{background:var(--code)}
 <h2 id="commands">Commands</h2>
 <table>
   <tr><th>Command</th><th>Use it to</th></tr>
-  <tr><td><code>/software-factory:init</code></td><td>Set up the factory in a project (once; safe to re-run)</td></tr>
+  <tr><td><code>/software-factory:init</code></td><td>Set up the factory in a project (once), or upgrade it after a plugin update; safe to re-run</td></tr>
   <tr><td><code>/software-factory:brainstorm [topic]</code></td><td>Generate options for a vague idea, then narrow them with MoSCoW</td></tr>
   <tr><td><code>/software-factory:grill [topic]</code></td><td>Stress-test a plan, idea or spec until nothing is left assumed. With no topic, it uses the conversation or the latest <code>vision.md</code> or <code>spec.md</code></td></tr>
   <tr><td><code>/factory document</code></td><td>Existing code: draft <code>docs/architecture.md</code> and <code>docs/decisions.md</code> from the repo and confirm them with you</td></tr>
@@ -282,7 +282,7 @@ factory/
   <tr><td>decision.md</td><td><code>APPROVE</code> or <code>ESCALATE</code></td></tr>
   <tr><td>verify.md</td><td><code>VERIFY: PASS</code> or <code>VERIFY: FAIL</code></td></tr>
 </table>
-<p>The skills and agents live in the installed plugin, not in your project, so updating the plugin updates them.</p>
+<p>The skills and agents live in the installed plugin, not in your project, so updating the plugin updates them. The dashboard, <code>server.py</code> and this guide are copies in <code>factory/</code>: after updating the plugin (<code>/plugin</code>, then restart Claude Code), run <code>/software-factory:init</code> again. On a set-up project it upgrades those copies, the backlog header and the factory section of <code>CLAUDE.md</code> after one confirmation, and never rewrites your jobs, backlog items or docs. Factory commands remind you in one line when the project and plugin versions differ.</p>
 
 <h2 id="agents">The agents</h2>
 <table>
@@ -330,6 +330,9 @@ factory/
 <h2 id="trouble">Troubleshooting</h2>
 <table>
   <tr><th>Symptom</th><th>Likely cause and fix</th></tr>
+  <tr><td>Commands start with “Project files are from … run /software-factory:init”</td><td>The plugin was updated but this project was not. Run <code>/software-factory:init</code>; it upgrades the dashboard, server and this guide after one confirmation.</td></tr>
+  <tr><td>“This project was upgraded with plugin …; update yours”</td><td>A teammate used a newer plugin. Update yours from <code>/plugin</code> and restart Claude Code.</td></tr>
+  <tr><td>A job sits in <code>spec</code> to <code>decision</code> with nothing running</td><td>Its session was interrupted. <code>/factory rework &lt;id&gt; resume after interruption</code> restarts it from its files.</td></tr>
   <tr><td>Job stops at <code>needs-human</code> immediately</td><td>Test command missing in <code>CLAUDE.md</code>, or the spec has open decisions. Check <code>spec.md</code>. A project with no tests can get one from a feature plan, which puts a test-harness job first.</td></tr>
   <tr><td><code>/factory plan</code> says to run <code>document</code> first</td><td>The repo has code but no <code>docs/architecture.md</code> and <code>docs/decisions.md</code>. Run <code>/factory document</code>, then plan again.</td></tr>
   <tr><td><code>/factory plan</code> asks to finish another plan first</td><td>One plan runs at a time. Run <code>/factory plan</code> with no text to finish it.</td></tr>
