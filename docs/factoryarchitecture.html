@@ -85,7 +85,7 @@ svg .h{font-weight:600;font-size:12.5px}
 <main>
 <header>
   <h1>Factory Architecture</h1>
-  <p class="lead">Maintainer's reference for the <code>software-factory</code> Claude Code plugin (v1.6.x): what each part is, what it reads and writes, and how the parts collaborate. For how to use the factory, see <a href="userguide.html">the user guide</a> (also copied to <code>factory/userguide.html</code> when a project is initialized).</p>
+  <p class="lead">Maintainer's reference for the <code>software-factory</code> Claude Code plugin (v1.7.x): what each part is, what it reads and writes, and how the parts collaborate. For how to use the factory, see <a href="userguide.html">the user guide</a> (also copied to <code>factory/userguide.html</code> when a project is initialized).</p>
 </header>
 
 <h2 id="overview">1. Overview</h2>
@@ -203,7 +203,7 @@ svg .h{font-weight:600;font-size:12.5px}
 <h3 id="skills">6.1 Skills</h3>
 <table>
 <tr><th>Skill</th><th>File</th><th>Invocation</th><th>Responsibility</th></tr>
-<tr><td><b>factory</b></td><td><code>skills/factory/SKILL.md</code></td><td><code>/software-factory:factory &lt;args&gt;</code></td><td>Orchestrator. Sections: Plugin notes · Commands · board.json · Preflight · Loop · Run command · Apply command · Plan command · Document command · approve/rework/retro · Rules. Spawns every agent, invokes grill/brainstorm, owns <code>board.json</code> and the inbox, performs merges and state commits.</td></tr>
+<tr><td><b>factory</b></td><td><code>skills/factory/SKILL.md</code></td><td><code>/software-factory:factory &lt;args&gt;</code></td><td>Orchestrator. Sections: Plugin notes · Commands · board.json · Preflight · Loop · Run command · Apply command · Plan command (product, feature) · Document command · approve/rework/retro · Rules. Spawns every agent, invokes grill/brainstorm, owns <code>board.json</code> and the inbox, performs merges and state commits.</td></tr>
 <tr><td><b>init</b></td><td><code>skills/init/SKILL.md</code></td><td><code>/software-factory:init</code> (<code>disable-model-invocation: true</code>)</td><td>Detect/record default branch, create <code>factory/</code> from templates (no overwrite), append project-context block to <code>CLAUDE.md</code> (marker-guarded), ensure <code>.DS_Store</code> in <code>.gitignore</code>, detect test/lint/build for existing code, ask (once, consent required) whether to add the merge rule <code>Bash(git merge --no-ff factory/*)</code> to <code>.claude/settings.local.json</code>, recommend next step, offer commit.</td></tr>
 <tr><td><b>grill</b></td><td><code>skills/grill/SKILL.md</code></td><td><code>/software-factory:grill [topic]</code> or via Skill tool</td><td>Design-tree interview in rounds. <code>[recommend]</code> vs <code>[open]</code> question tags. Append-only decision log, mirror-then-connect wrap-up, intent doc (updates an existing brainstorm <code>intent.md</code>, tagging changed lines with D-numbers), headless mode (assumed answers, <code>partial</code> when OPEN remain).</td></tr>
 <tr><td><b>brainstorm</b></td><td><code>skills/brainstorm/SKILL.md</code></td><td><code>/software-factory:brainstorm [topic]</code> or via Skill tool</td><td>Facilitator-style divergence (no ideas supplied by the coach), 3–4 techniques, separate convergence phase (MoSCoW default), log + <code>docs/intent.md</code>.</td></tr>
@@ -543,6 +543,7 @@ factory/
 <tr><td>Feature plan scope cap</td><td><code>planner.md</code> FEATURE PASS 1 and 3, orchestrator Feature Pass 3 gate</td><td>≤5 Must capabilities; ≤3 epics and ~12 backlog items, Must only</td></tr>
 <tr><td>Thin-request threshold (feature plan)</td><td>orchestrator Feature plan Pass 1</td><td>~30 words / no user or outcome</td></tr>
 <tr><td>Backlog item size</td><td><code>planner.md</code> PASS 3</td><td>≤ ~5 acceptance criteria</td></tr>
+<tr><td>Backlog line length</td><td><code>planner.md</code> PASS 3 (feature PASS 3 inherits it)</td><td>one outcome sentence, ≤20 words excluding id, tags and <code>depends:</code>; no storage keys, exit codes or formats</td></tr>
 <tr><td>Dashboard poll</td><td><code>dashboard.html</code></td><td>3000 ms</td></tr>
 <tr><td>Run stop: consecutive parked jobs</td><td>orchestrator Run command</td><td>2</td></tr>
 <tr><td>Dashboard server port, body, note limits</td><td><code>server.py</code></td><td>8000 (tries up to 8020); body ≤ 16 KB; note ≤ 4000 chars; ≤ 10 answers; action types approve / rework / resume / signoff</td></tr>
@@ -618,6 +619,7 @@ claude -p "/software-factory:brainstorm …" --plugin-dir $PL                   
 <tr><td>L14</td><td>The action server relies on a per-run token, Host/Origin checks and localhost binding; there is no user authentication or HTTPS.</td><td>Another local user or process on the same machine that can read the printed URL could queue actions (still validated again at apply).</td><td>Unix-socket mode, or a token file with 0600 permissions.</td></tr>
 <tr><td>L15</td><td><code>/factory run</code> job isolation (a fresh sub-orchestrator per job), <code>run resume</code> after a crash, the two-in-a-row stop and the epic retro were not exercised in the sandbox test; the inner loop, parking, dependency skipping and approve-after-answer were.</td><td>Unverified paths.</td><td>Run <code>run</code> in a scratch repo with <code>--max-jobs</code> small; kill it mid-job and resume.</td></tr>
 <tr><td>L16</td><td>Spec refinements proposed by a builder in a patch round are appended to the spec by the orchestrator without human approval (flagged in the final report).</td><td>The spec can drift from what the human intended.</td><td>Require approval for any AC deviation.</td></tr>
+<tr><td>L17</td><td>Feature plans were sandbox-tested unattended only (gates auto-approved, questions answered with the planner's recommendation): the interactive grill and gates, a human choosing to supersede a decision, and notes at Pass 1 or 2 have not been exercised. Append-only and re-run replacement are prompt rules, like L1 and L10.</td><td>A feature plan could duplicate or rewrite shared lines unnoticed.</td><td>Dogfood on a real repo; diff the shared files after each plan (<code>git diff</code> should show only additions, apart from a supersede line).</td></tr>
 <tr><td>L11</td><td>Grill/brainstorm fact-finding uses sub-agents only when run in the main session (as by the orchestrator). Run inside a subagent they cannot spawn more.</td><td>Facts may be asked of the human.</td><td>Keep them orchestrator-invoked.</td></tr>
 </table>
 
@@ -661,6 +663,7 @@ claude -p "/software-factory:brainstorm …" --plugin-dir $PL                   
 <tr><td>1.6.3</td><td>Documentation only: both user guides explain the four skills (init, factory, brainstorm, grill), how brainstorm and grill differ, and when the factory runs them; the README has a skills table; stale statements fixed (backlog ticked only on merge, four dashboard actions including <code>signoff</code>, merge conflicts, verification from <code>git archive</code>, approver never merges); sign-off criteria, <code>MERGE BLOCKED</code>, follow-ups and extra/skip reviewers documented; this document's schemas and the upgrade path brought up to 1.6.x.</td></tr>
 <tr><td>1.7.0</td><td>Feature-plan mode: <code>/factory plan &lt;capability&gt;</code> on a product whose architecture is on record plans one capability in three gated passes (feature brief, new decisions only, appended epics and backlog lines, no scaffold), with its own files in <code>docs/features/&lt;slug&gt;/</code>; brainstorm takes caller-named paths; <code>run</code> needs no plan in progress instead of an approved plan, so hand-written and feature-planned backlogs run; a <code>(enabler: test-harness)</code> item may start without a test command; <code>document</code> offers a commit; spec-writer reads the feature brief its epic links; dashboard planning banner names the feature.</td></tr>
 <tr><td>1.7.1</td><td>From the second feature-plan test (a second plan on the same repo, a Pass 3 re-run on a note, and a repo with code but no docs, all behaving): backlog lines capped at 20 words with no storage keys, exit codes or formats; on a feature-pass re-run the planner, not the orchestrator, replaces what that pass appended.</td></tr>
+<tr><td>1.7.2</td><td>Documentation only: both user guides describe the 20-word backlog lines, re-running a pass on a note, checking assumed answers after an unattended plan, and the test-harness exception; this document gains the backlog-line tunable, limitation L17 (feature plans tested unattended only) and glossary entries for feature plan, feature brief and test-harness job; the <code>factory</code> skill description names <code>plan</code> and <code>document</code>.</td></tr>
 </table>
 
 <h2 id="glossary">17. Glossary</h2>
@@ -681,7 +684,10 @@ claude -p "/software-factory:brainstorm …" --plugin-dir $PL                   
 <tr><td>Inferred decision</td><td>A decision recorded from code evidence, not confirmed by a human; becomes <code>accepted</code> when confirmed.</td></tr>
 <tr><td>Intent doc</td><td>Short brief (<code>docs/intent.md</code>) produced by grill/brainstorm as planner input.</td></tr>
 <tr><td>Headless</td><td>Unattended grill/brainstorm run; answers are assumed and listed for review.</td></tr>
-<tr><td>Scaffold job</td><td>Backlog item 1: project skeleton + passing test + commands + CI.</td></tr>
+<tr><td>Scaffold job</td><td>Backlog item 1 of a product plan: project skeleton + passing test + commands + CI.</td></tr>
+<tr><td>Feature plan</td><td><code>/factory plan &lt;capability&gt;</code> on a product whose architecture is on record: three gated passes that append decisions, epics and backlog lines for one capability.</td></tr>
+<tr><td>Feature brief</td><td><code>docs/features/&lt;slug&gt;/brief.md</code>: the capability's users, outcome, Musts, out of scope and touched components; linked from its epics and read by the spec-writer.</td></tr>
+<tr><td>Test-harness job</td><td>A feature plan's first item on a project without tests, tagged <code>(enabler: test-harness)</code>; like the scaffold job it may start without a working test command.</td></tr>
 <tr><td>Pre-mortem</td><td>Section of <code>architecture.md</code>: likely causes of failure and the decision that prevents each.</td></tr>
 <tr><td>MoSCoW</td><td>Must / Should / Could / Won't-this-time scope sort.</td></tr>
 </table>

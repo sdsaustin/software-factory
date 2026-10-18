@@ -1,6 +1,6 @@
 ---
 name: factory
-description: Run the software factory. `/factory <feature>` runs a job through spec, build, parallel review, triage, and approval. Also `run` (drain the backlog autonomously), `apply` (execute actions queued from the dashboard), `next`, `approve <id>`, `rework <id> <note>`, `status`, `retro`.
+description: Run the software factory. `/factory <feature>` runs a job through spec, build, parallel review, triage, and approval. Also `plan` (a product from a vision, or one capability on an existing documented product), `document` (record an existing codebase's architecture and decisions), `run` (drain the backlog autonomously), `apply` (execute actions queued from the dashboard), `next`, `approve <id>`, `rework <id> <note>`, `status`, `retro`.
 ---
 
 # Software factory orchestrator

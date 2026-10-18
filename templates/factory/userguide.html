@@ -321,7 +321,7 @@ factory/
 
 <h2 id="tips">Tips</h2>
 <ul>
-  <li>Queue work in <code>backlog.md</code> as <code>- [ ] description</code> lines and run <code>/factory next</code> repeatedly.</li>
+  <li>Queue work in <code>backlog.md</code> as <code>- [ ] description</code> lines and run <code>/factory next</code> repeatedly, or let <code>/factory plan &lt;capability&gt;</code> write the lines for a bigger capability. One short outcome per line.</li>
   <li>Keep jobs small. A spec with more than five ACs is usually two jobs.</li>
   <li>When an agent keeps making the same mistake, record it as an <b>Observed pitfall</b> in <code>CLAUDE.md</code>. Add rules only after you have seen the mistake, and keep a rule even if nothing has broken recently.</li>
   <li>Completed job folders stay in <code>factory/jobs/</code>; retros and later builds learn from them.</li>
@@ -330,7 +330,9 @@ factory/
 <h2 id="trouble">Troubleshooting</h2>
 <table>
   <tr><th>Symptom</th><th>Likely cause and fix</th></tr>
-  <tr><td>Job stops at <code>needs-human</code> immediately</td><td>Test command missing in <code>CLAUDE.md</code>, or the spec has open decisions. Check <code>spec.md</code>.</td></tr>
+  <tr><td>Job stops at <code>needs-human</code> immediately</td><td>Test command missing in <code>CLAUDE.md</code>, or the spec has open decisions. Check <code>spec.md</code>. A project with no tests can get one from a feature plan, which puts a test-harness job first.</td></tr>
+  <tr><td><code>/factory plan</code> says to run <code>document</code> first</td><td>The repo has code but no <code>docs/architecture.md</code> and <code>docs/decisions.md</code>. Run <code>/factory document</code>, then plan again.</td></tr>
+  <tr><td><code>/factory plan</code> asks to finish another plan first</td><td>One plan runs at a time. Run <code>/factory plan</code> with no text to finish it.</td></tr>
   <tr><td>"Working tree must be clean"</td><td>Commit or stash your changes, then rerun.</td></tr>
   <tr><td>Dashboard says it cannot load board.json</td><td>Serve it: run <code>python3 factory/server.py</code> and open the URL it prints; opening the file directly will not work.</td></tr>
   <tr><td>Dashboard buttons say “Copy command”</td><td>Open the exact URL <code>server.py</code> printed, including <code>#t=...</code>. A restarted server prints a new token.</td></tr>
