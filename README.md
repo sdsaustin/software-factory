@@ -18,6 +18,7 @@ In any project:
 /software-factory:factory plan <your vision>            # no code yet: brief, architecture, epics, backlog
 /software-factory:factory <feature>                     # run one feature through the loop
 /software-factory:factory document                      # existing code: draft architecture + decisions from the repo, confirm with you
+/software-factory:factory plan <capability>             # existing, documented product: plan one capability into epics + backlog (feature mode)
 /software-factory:brainstorm [topic]                    # vague idea? you generate options (the coach adds none), then narrow with MoSCoW
 /software-factory:grill [topic]                         # have a direction? rounds of numbered questions until every decision is made
 /software-factory:factory next | status | retro
@@ -32,7 +33,7 @@ In any project:
 | Skill | Use it when |
 |---|---|
 | `init` | Once per project: sets up `factory/` and `CLAUDE.md`, offers the merge permission |
-| `factory` | Everything else: `plan`, `document`, `<feature>`, `next`, `run`, `apply`, `approve`, `rework`, `signoff`, `status`, `retro` |
+| `factory` | Everything else: `plan` (a product, or one capability on existing code), `document`, `<feature>`, `next`, `run`, `apply`, `approve`, `rework`, `signoff`, `status`, `retro` |
 | `brainstorm` | The idea is vague. It widens: a coach draws out many options from you, one prompt at a time, then you narrow them with MoSCoW into `docs/intent.md` |
 | `grill` | You have a direction. It narrows: numbered rounds of questions (`[recommend]` ones carry a suggested answer, `[open]` product calls do not) until nothing is assumed; decisions go to `docs/grill-log.md` and `docs/intent.md` |
 
@@ -51,6 +52,6 @@ When the idea is vague, run brainstorm and then grill. `factory plan` runs both 
 | `docs/factoryarchitecture.html` | Maintainer reference: architecture, file contracts, flows, invariants |
 | `docs/upgradepath.html` | Upgrading a part-built project from an older plugin version and resuming |
 
-Read [`docs/userguide.html`](docs/userguide.html) for the skills and for walkthroughs: a vague idea through to a shipped product, adding features to existing code, a single small change, and a large capability split into jobs. `init` also copies a shorter guide to `factory/userguide.html` in the project.
+Read [`docs/userguide.html`](docs/userguide.html) for the skills and for walkthroughs: a vague idea through to a shipped product, adding features to existing code (`init` → `document` → `plan <capability>` → `run`), a single small change, and a large capability split into jobs. `init` also copies a shorter guide to `factory/userguide.html` in the project.
 
 Maintainers: see [`docs/factoryarchitecture.html`](docs/factoryarchitecture.html) for the architecture, file contracts, flows, invariants, maintenance playbooks and known limitations.

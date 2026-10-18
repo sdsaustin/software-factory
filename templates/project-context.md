@@ -22,6 +22,7 @@
 Work flows through `/software-factory:factory` (installed plugin `software-factory`). State lives in `factory/board.json`
 (only the orchestrator writes it). Agents read context from files, never the conversation, and write only their own file.
 Every agent reads this file and `factory/learnings.md` before starting, plus `docs/vision.md`, `docs/architecture.md`,
-`docs/decisions.md` and `docs/epics.md` when they exist (produced by `/software-factory:factory plan`). Specs and builds must
+`docs/decisions.md` and `docs/epics.md` when they exist (produced by `/software-factory:factory plan` or `document`); feature plans keep
+their own files in `docs/features/<slug>/`, linked from their epics. Specs and builds must
 not contradict `docs/decisions.md`; if one must change, say so in `spec.md` under Open decisions.
 User guide: `factory/userguide.html`.

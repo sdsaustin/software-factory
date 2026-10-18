@@ -65,7 +65,7 @@ th{background:var(--code)}
   <tr><td><code>/software-factory:grill [topic]</code></td><td>You have a direction, plan or spec and want it stress-tested</td><td>Settled decisions <code>D1, D2, …</code> in <code>docs/grill-log.md</code> and <code>docs/intent.md</code></td></tr>
 </table>
 <p><b>Brainstorm widens; grill narrows.</b> Brainstorm asks one open prompt at a time and works through techniques such as <i>What If</i>, <i>Worst Idea</i> and <i>Role Playing</i>. It narrows the result only at the end, using your own judgments. Grill asks every question it can ask now, numbered, and waits for your answers before the next round. It looks up facts itself and asks you only for decisions. When the idea is vague, run brainstorm and then grill. Both keep a log, so an interrupted session resumes where it stopped. Both end by showing your answers back before adding their own observations.</p>
-<p>The factory also runs them for you. <code>factory plan</code> brainstorms a thin vision, then always grills it unless you say "skip grill". <code>factory document</code> grills you on why the code is the way it is. A job whose spec has open decisions grills you before any code is written. In an unattended <code>factory run</code>, nothing grills mid-job: the question is parked in <code>factory/inbox.md</code>, and the run offers to grill you through the inbox at the end.</p>
+<p>The factory also runs them for you. <code>factory plan</code> brainstorms a thin vision, then always grills it unless you say "skip grill". <code>factory plan &lt;capability&gt;</code> on an existing product does the same for one feature, logging in <code>docs/features/&lt;slug&gt;/</code>. <code>factory document</code> grills you on why the code is the way it is. A job whose spec has open decisions grills you before any code is written. In an unattended <code>factory run</code>, nothing grills mid-job: the question is parked in <code>factory/inbox.md</code>, and the run offers to grill you through the inbox at the end.</p>
 
 <h2 id="workflows">Which workflow do I follow?</h2>
 <table>
@@ -73,7 +73,7 @@ th{background:var(--code)}
   <tr><td>I only have an idea or a vision statement</td><td><a href="#wf-idea">Workflow A: start from an idea</a></td></tr>
   <tr><td>I have a very vague idea (a sentence or two)</td><td>Workflow A; brainstorming runs first automatically</td></tr>
   <tr><td>I have working code and want to add features</td><td><a href="#wf-existing">Workflow B: existing implementation</a></td></tr>
-  <tr><td>I have code and a big new capability (more than a few jobs)</td><td>Workflow B, plus the "big feature" step</td></tr>
+  <tr><td>I have code and a big new capability (more than a few jobs)</td><td>Workflow B: plan the capability with <code>/factory plan &lt;capability&gt;</code></td></tr>
 </table>
 
 <h3 id="wf-idea">Workflow A: start from an idea</h3>
@@ -108,24 +108,26 @@ th{background:var(--code)}
 <div class="flow">
   <span class="step">1 Init in the repo</span><span class="arrow">→</span>
   <span class="step">2 Context + document</span><span class="arrow">→</span>
-  <span class="step">3 Add features</span><span class="arrow">→</span>
-  <span class="step">4 Review and merge</span><span class="arrow">→</span>
+  <span class="step">3 Plan a capability</span><span class="arrow">→</span>
+  <span class="step">4 Run</span><span class="arrow">→</span>
   <span class="step">5 Retro</span>
 </div>
 <ol>
   <li><b>Prepare the repo.</b> Commit or stash your code changes (jobs need no uncommitted changes outside <code>factory/</code>, <code>docs/</code> and <code>CLAUDE.md</code>). Be on your default branch (any name: <code>main</code>, <code>master</code>, <code>develop</code>…). <code>init</code> detects it and records it as <code>default_branch</code> in <code>factory/board.json</code>; jobs branch from it and merge back into it. Nothing is renamed. If your default branch is protected or needs pull requests, the factory pushes the job branch and asks you to open a PR instead of merging.</li>
   <li><b>Init.</b> In the repo root:
 <pre><code>&gt; /software-factory:init</code></pre>
-  It adds <code>factory/</code> and appends the project-context block to your existing <code>CLAUDE.md</code> (nothing is overwritten). Because code exists, it also looks for your test, lint and build commands, runs the tests once, and shows you the exact lines it proposes to write. Approve them.</li>
-  <li><b>Confirm context.</b> Open <code>CLAUDE.md</code> and add only what an agent cannot learn from the code: policy, frozen or generated paths, non-default conventions, and mistakes you have actually seen. Skip directory trees and tech-stack lists. You do <b>not</b> need <code>/factory plan</code>.</li>
+  It adds <code>factory/</code> and appends the project-context block to your existing <code>CLAUDE.md</code> (nothing is overwritten). Because code exists, it also looks for your test, lint and build commands, runs the tests once, and shows you the exact lines it proposes to write. Approve them, and accept init's offer to commit (a job will not start while its <code>.gitignore</code> change is uncommitted).</li>
+  <li><b>Confirm context.</b> Open <code>CLAUDE.md</code> and add only what an agent cannot learn from the code: policy, frozen or generated paths, non-default conventions, and mistakes you have actually seen. Skip directory trees and tech-stack lists. You do <b>not</b> plan the whole product.</li>
   <li><b>Document what exists.</b> Run:
 <pre><code>&gt; /software-factory:factory document</code></pre>
-  The planner reads your manifests, config, entrypoints, data models, CI and git history, then drafts <code>docs/architecture.md</code> and <code>docs/decisions.md</code>. Every decision is marked <code>Status: inferred</code> and cites the files or commits it came from. Where the code cannot tell the planner <i>why</i>, it writes "Context: unknown" and you are grilled on those questions (why this datastore, which parts are legacy, which conventions are law). Answered decisions become <code>accepted</code>. You approve the result, and the proposed <code>CLAUDE.md</code> facts, before anything is saved. Expect a few minutes of questions; this is what stops later specs from contradicting your past choices.</li>
-  <li><b>Add a feature.</b> (After the documentation is approved.)
+  The planner reads your manifests, config, entrypoints, data models, CI and git history, then drafts <code>docs/architecture.md</code> and <code>docs/decisions.md</code>. Every decision is marked <code>Status: inferred</code> and cites the files or commits it came from. Where the code cannot tell the planner <i>why</i>, it writes "Context: unknown" and you are grilled on those questions (why this datastore, which parts are legacy, which conventions are law). Answered decisions become <code>accepted</code>. You approve the result, and the proposed <code>CLAUDE.md</code> facts, before anything is saved. Expect a few minutes of questions; this is what stops later specs from contradicting your past choices. Accept the commit it offers. You do this once per repo.</li>
+  <li><b>Plan a capability.</b> (After the documentation is approved.)
+<pre><code>&gt; /software-factory:factory plan let customers invite teammates and revoke access</code></pre>
+  With the architecture on record, <code>plan</code> runs in <b>feature mode</b>: three approved passes for this one capability, with its own files in <code>docs/features/&lt;slug&gt;/</code>. Pass 1 brainstorms a thin request, grills you on the feature only, and writes <code>brief.md</code> (at most five Musts, out of scope, which existing components it touches). Pass 2 adds only the decisions the feature needs to <code>docs/decisions.md</code>; a recorded decision is changed only if you agree, and is marked superseded, never deleted. Pass 3 adds at most three epics and about twelve backlog items to the end of <code>docs/epics.md</code> and <code>factory/backlog.md</code>, with no scaffold job. If the project has no test command yet, the first item is a test harness that the rest depend on.</li>
+  <li><b>Run it.</b> <code>/software-factory:factory run</code> works through the new items and parks only what needs you; or use <code>/software-factory:factory next</code> one job at a time. Each spec reads the feature brief its epic links.</li>
+  <li><b>One change needs no plan.</b>
 <pre><code>&gt; /software-factory:factory add CSV export to the evidence list, tenant-scoped</code></pre>
-  The spec-writer inspects your repo, records a baseline test run, and picks the track (<code>quick</code> or <code>full</code>). Open decisions trigger a short grill. Then build, review, triage and approval run as in <a href="#loop">The loop</a>.</li>
-  <li><b>Queue more.</b> Put features in <code>factory/backlog.md</code> as <code>- [ ] description</code> lines, then run <code>/software-factory:factory next</code> repeatedly. Keep each job small: five acceptance criteria or fewer.</li>
-  <li><b>Big feature (several jobs).</b> Do not push it through as one job. Run <code>/software-factory:grill &lt;the capability&gt;</code> (or <code>/software-factory:brainstorm</code> if it is still fuzzy) to settle the decisions into <code>docs/intent.md</code>, then split the result into backlog lines yourself or ask Claude to. Record the key decisions in <code>docs/decisions.md</code> so later jobs stay consistent.</li>
+  The spec-writer inspects your repo, records a baseline test run, and picks the track (<code>quick</code> or <code>full</code>). Open decisions trigger a short grill. Then build, review, triage and approval run as in <a href="#loop">The loop</a>. You can also add <code>- [ ] description</code> lines to <code>factory/backlog.md</code> by hand; keep each to five acceptance criteria or fewer.</li>
   <li><b>Review, merge, learn.</b> Handle <code>needs-human</code> cards with <code>approve</code> or <code>rework</code>. Run <code>/software-factory:factory retro</code> now and then, and approve the pitfalls it proposes for <code>CLAUDE.md</code>.</li>
 </ol>
 <div class="callout warn"><b>Existing code, existing problems.</b> Reviews judge the change against its spec. Problems that predate it are triaged as <code>defer</code> and logged, not fixed silently. If your baseline tests are already failing, the spec records that, so the builder is not blamed for it.</div>
@@ -203,6 +205,7 @@ th{background:var(--code)}
   <tr><td><code>/factory document</code></td><td>Existing code: draft <code>docs/architecture.md</code> and <code>docs/decisions.md</code> from the repo and confirm them with you</td></tr>
   <tr><td><code>/factory &lt;feature&gt;</code></td><td>Run a new job through the whole loop</td></tr>
   <tr><td><code>/factory plan &lt;vision&gt;</code></td><td>Plan a whole product from a vision: brief, architecture decisions, epics, ordered backlog. Run it with no argument to resume.</td></tr>
+  <tr><td><code>/factory plan &lt;capability&gt;</code></td><td>Existing, documented product: plan one capability (feature brief, new decisions only, epics and backlog lines appended). Run it with no argument to resume.</td></tr>
   <tr><td><code>/factory run [--max-jobs N] [--until E2] [--budget minutes]</code></td><td>Autonomous outer loop: runs every ready backlog item, parks any job that needs a human (questions go to <code>factory/inbox.md</code>, shown in the dashboard), keeps working on independent items, and stops on a circuit breaker. <code>/factory run resume</code> continues after you answer the inbox.</td></tr>
   <tr><td><code>/factory apply</code></td><td>Carry out the approve / rework / resume actions you queued by clicking on the dashboard</td></tr>
   <tr><td><code>/factory next</code></td><td>Run the first ready item in <code>factory/backlog.md</code> (unchecked, its <code>depends:</code> items done). It is ticked only when its job merges.</td></tr>
@@ -249,7 +252,8 @@ round-1/code.md      VERDICT: CHANGES   (code.md:  src/health.ts:12 - returns 20
 <h2 id="files">Where everything lives</h2>
 <pre><code>CLAUDE.md                          project context (read by every agent)
 .claude/settings.local.json        the merge permission, if you allowed it at init (not committed)
-docs/                              vision, brief, architecture, decisions, epics (from /factory plan)
+docs/                              vision, brief, architecture, decisions, epics (from /factory plan or document)
+  features/&lt;slug&gt;/                 one folder per feature plan: request, logs, intent, brief.md, questions, answers
   brainstorm-log.md  grill-log.md  session logs from brainstorm and grill (resumable)
   intent.md                        the chosen direction and decisions, input to the planner
 factory/
@@ -283,7 +287,7 @@ factory/
 <h2 id="agents">The agents</h2>
 <table>
   <tr><th>Agent</th><th>Model</th><th>Writes</th><th>Can change code?</th></tr>
-  <tr><td>planner</td><td>Opus</td><td>docs/*.md, backlog.md (only via <code>/factory plan</code>)</td><td>No</td></tr>
+  <tr><td>planner</td><td>Opus</td><td>docs/*.md, docs/features/, backlog.md (only via <code>/factory plan</code> and <code>document</code>)</td><td>No</td></tr>
   <tr><td>spec-writer</td><td>Opus</td><td>spec.md</td><td>No</td></tr>
   <tr><td>builder</td><td>Opus</td><td>build.md + branch commits</td><td>Yes, only on <code>factory/&lt;id&gt;</code></td></tr>
   <tr><td>reviewer-security</td><td>Opus</td><td>round-N/security.md</td><td>No</td></tr>

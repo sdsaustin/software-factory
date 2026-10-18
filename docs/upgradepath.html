@@ -35,7 +35,7 @@ ol>li,ul>li{margin:6px 0}
 <div class="wrap">
 <header>
   <h1>Upgrade path</h1>
-  <p class="lead">Moving a project that is already part-built from an older <code>software-factory</code> plugin (for example 1.3.x) to the current version (1.6.x), and carrying on where you left off. Worked example: 54 backlog items, 5 built.</p>
+  <p class="lead">Moving a project that is already part-built from an older <code>software-factory</code> plugin (for example 1.3.x) to the current version (1.7.x), and carrying on where you left off. Worked example: 54 backlog items, 5 built.</p>
 </header>
 <nav>
   <a href="#why">Why it works</a><a href="#checks">1 Pre-flight</a><a href="#plugin">2 Upgrade the plugin</a><a href="#files">3 Refresh project files</a><a href="#deps">4 Add dependencies</a><a href="#first">5 First run</a><a href="#resume">Resuming by state</a><a href="#rollback">Rollback</a><a href="#risks">Risks</a>
@@ -53,6 +53,7 @@ ol>li,ul>li{margin:6px 0}
   <tr><td>1.5.9</td><td>Early sign-off (<code>/factory signoff</code>, a <code>signoff</code> dashboard action), conflict re-check of parked jobs, <code>retro.done_since</code> counter</td><td>Refresh <code>dashboard.html</code> and <code>server.py</code> (step 3); the server rejects <code>signoff</code> otherwise. A missing <code>retro</code> field in <code>board.json</code> is added when first needed.</td></tr>
   <tr><td>1.6.0</td><td>In a run the outer loop does the merge; <code>MERGE BLOCKED</code> parking; planning progress on the dashboard; grill updates a brainstorm <code>intent.md</code></td><td>Refresh <code>dashboard.html</code> (step 3)</td></tr>
   <tr><td>1.6.1 – 1.6.2</td><td><code>init</code> offers the merge permission; <code>Docs files:</code> spec line; follow-ups from every round</td><td>Re-run <code>/software-factory:init</code> once to be asked about the merge permission (it changes nothing else in an initialized project)</td></tr>
+  <tr><td>1.7.0</td><td>Feature-plan mode: <code>/factory plan &lt;capability&gt;</code> on a documented product; <code>run</code> works on hand-written backlogs; test-harness items</td><td>Nothing mandatory. A plan in progress keeps running as a product plan. Refresh <code>dashboard.html</code> and <code>userguide.html</code> (step 3) to see the feature name in the planning banner and the new walkthrough. The project-context block in <code>CLAUDE.md</code> is not updated; the agents carry the new rules themselves.</td></tr>
 </table>
 
 <h2 id="checks">1. Pre-flight (before touching anything)</h2>

@@ -56,6 +56,7 @@ ol.story>li{margin:10px 0}
   <a class="sub" href="#vague-story">The walkthrough</a>
   <a class="sub" href="#vague-you">Where you decide</a>
   <a href="#existing">6 Features on existing code</a>
+  <a class="sub" href="#feature-plan">Plan a capability</a>
   <a href="#small">7 One small change</a>
   <a href="#big">8 A big capability</a>
   <a href="#asks">9 When it asks you</a>
@@ -130,6 +131,7 @@ ol.story>li{margin:10px 0}
   <tr><th>Moment</th><th>Skill</th><th>Where the result goes</th></tr>
   <tr><td><code>factory plan</code>, pass 1, when the vision is thin (roughly under 60 words, no stated users or outcome) or you say you are unsure</td><td>brainstorm</td><td><code>docs/brainstorm-log.md</code>, <code>docs/intent.md</code></td></tr>
   <tr><td><code>factory plan</code>, pass 1, always (unless you say "skip grill")</td><td>grill, seeded with your vision and any brainstorm result</td><td><code>docs/grill-log.md</code>, <code>docs/intent.md</code></td></tr>
+  <tr><td><code>factory plan &lt;capability&gt;</code> on an existing product (feature mode), pass 1: brainstorm when the request is thin (roughly under 30 words, or no user or outcome), then grill</td><td>brainstorm, then grill, seeded with your request; your existing vision, architecture and decisions are treated as settled</td><td><code>docs/features/&lt;slug&gt;/brainstorm-log.md</code>, <code>grill-log.md</code>, <code>intent.md</code></td></tr>
   <tr><td><code>factory document</code>, when the code cannot say <i>why</i> a choice was made</td><td>grill, seeded with the planner's questions</td><td><code>docs/grill-log.md</code>, <code>docs/answers.md</code></td></tr>
   <tr><td>A job's spec has open decisions (a product choice with no safe default)</td><td>grill, seeded with those decisions</td><td><code>factory/jobs/&lt;id&gt;/grill-log.md</code>, <code>answers.md</code></td></tr>
   <tr><td>A <code>factory run</code> ends with questions in the inbox</td><td>grill (offered), seeded with <code>factory/inbox.md</code></td><td>each job's <code>answers.md</code>, then rework or approve</td></tr>
@@ -143,9 +145,9 @@ ol.story>li{margin:10px 0}
   <tr><th>Where you are</th><th>What to run</th><th>Walkthrough</th></tr>
   <tr><td>A sentence or two, no product yet</td><td><code>/software-factory:factory plan &lt;the sentence&gt;</code></td><td><a href="#vague">Vague idea to a finished product</a></td></tr>
   <tr><td>A clearer vision, still no code</td><td><code>/software-factory:factory plan &lt;vision&gt;</code></td><td>Same path; brainstorm is skipped when the vision already names users and an outcome</td></tr>
-  <tr><td>Working code, and you want the next feature</td><td><code>/software-factory:init</code>, then <code>/software-factory:factory document</code>, then <code>/software-factory:factory &lt;feature&gt;</code></td><td><a href="#existing">Add features to an existing product</a></td></tr>
+  <tr><td>Working code, and you want to add to it</td><td><code>/software-factory:init</code>, then <code>/software-factory:factory document</code>, then <code>/software-factory:factory plan &lt;capability&gt;</code> and <code>/software-factory:factory run</code></td><td><a href="#existing">Add features to an existing product</a></td></tr>
   <tr><td>One obvious change</td><td><code>/software-factory:factory &lt;the change&gt;</code></td><td><a href="#small">Ship one small change</a></td></tr>
-  <tr><td>A large new capability on either kind of project</td><td><code>/software-factory:brainstorm</code> or <code>/software-factory:grill</code>, then several backlog items</td><td><a href="#big">Split a big capability</a></td></tr>
+  <tr><td>A large new capability on a product that already exists</td><td><code>/software-factory:factory plan &lt;capability&gt;</code> (feature mode)</td><td><a href="#big">Split a big capability</a></td></tr>
   <tr><td>A job has stopped and is waiting</td><td><code>/software-factory:factory approve &lt;id&gt;</code> or <code>/software-factory:factory rework &lt;id&gt; &lt;note&gt;</code></td><td><a href="#asks">When the factory asks you</a></td></tr>
 </table>
 
@@ -199,30 +201,37 @@ claude
 <p>If you want an unattended plan, say so. Grill and brainstorm will answer what they can, mark those answers <code>(assumed)</code>, and list every assumption at the approval gate. They will not invent answers to open product questions; those stay open until you reply.</p>
 
 <h2 id="existing">6. Add features to a product that already exists</h2>
-<p>Use this when the repository already builds and you want the factory to extend it. You skip the three-pass product plan. You do write down what the code already decided, so later specs do not fight it.</p>
+<p>Use this when the repository already builds and you want the factory to extend it. You do not plan the whole product. You write down what the code already decided, once, and then plan each new capability on top of it.</p>
 <div class="flow">
   <span class="step">Clean tree, default branch</span><span class="arrow">→</span>
   <span class="step">Init</span><span class="arrow">→</span>
   <span class="step">Document</span><span class="arrow">→</span>
-  <span class="step">One feature</span><span class="arrow">→</span>
-  <span class="step">A backlog of more</span>
+  <span class="step">Plan a capability</span><span class="arrow">→</span>
+  <span class="step">Run</span>
 </div>
 <ol class="story">
   <li><b>Prepare the repo.</b> Commit or stash your own code changes. Check out the default branch. If that branch is protected or requires pull requests, the factory will push <code>factory/&lt;id&gt;</code> and ask you to open the PR. It will not force a local merge.</li>
   <li><b>Init inside the repo.</b>
 <pre><code>&gt; /software-factory:init</code></pre>
-  Factory files are added beside your code. The project-context block is appended to <code>CLAUDE.md</code> if it is not already there. Because source files exist, init looks up the test, lint and build commands, runs the tests once, and shows you the exact lines it wants to write. Approve them. Then add only facts an agent cannot learn by reading the code: a policy, a frozen or generated path, a convention that is not the framework default, a mistake you have actually seen. Skip directory trees and tech-stack lists.</li>
+  Factory files are added beside your code. The project-context block is appended to <code>CLAUDE.md</code> if it is not already there. Because source files exist, init looks up the test, lint and build commands, runs the tests once, and shows you the exact lines it wants to write. Approve them. Then add only facts an agent cannot learn by reading the code: a policy, a frozen or generated path, a convention that is not the framework default, a mistake you have actually seen. Skip directory trees and tech-stack lists. Accept init's offer to commit: a job will not start while init's <code>.gitignore</code> change is uncommitted.</li>
   <li><b>Document what is already true.</b>
 <pre><code>&gt; /software-factory:factory document</code></pre>
-  The planner reads manifests, config, entrypoints, data models, CI and git history. It drafts <code>docs/architecture.md</code> and <code>docs/decisions.md</code>. Every decision starts as <code>Status: inferred</code> and cites the file or commit it came from. Where the code cannot say <i>why</i>, you are grilled (why this database, which areas are legacy, which conventions are law). Answered decisions become <code>Status: accepted</code>. You approve the component list, the decisions, and the proposed <code>CLAUDE.md</code> facts before they are applied. Inferred decisions still bind later specs, but a conflict with an inferred decision is a question for you, not an automatic failure.</li>
-  <li><b>Ask for one feature in terms of the outcome.</b>
-<pre><code>&gt; /software-factory:factory add a CSV export of the evidence list, scoped to the current tenant</code></pre>
-  The spec-writer reads the repo and the new docs, runs the baseline tests, and writes <code>factory/jobs/&lt;id&gt;/spec.md</code> with intent, non-goals, numbered acceptance criteria and a track. If something is a real product choice with no safe default (CSV or PDF, who may export), the job stops at <code>needs-human</code> and grills you before any code is written. Your answers are saved and the spec is rewritten once. Then build, review, triage and approval run as in <a href="#loop">the loop</a>.</li>
-  <li><b>Queue the rest.</b> Put further features in <code>factory/backlog.md</code>:
-<pre><code>- [ ] Filter the evidence list by control id
-- [ ] Email the exporter when a large CSV is ready</code></pre>
-  Then <code>/software-factory:factory next</code>, one item per session. Keep each job to about five acceptance criteria. A larger change belongs in <a href="#big">several jobs</a>.</li>
+  The planner reads manifests, config, entrypoints, data models, CI and git history. It drafts <code>docs/architecture.md</code> and <code>docs/decisions.md</code>. Every decision starts as <code>Status: inferred</code> and cites the file or commit it came from. Where the code cannot say <i>why</i>, you are grilled (why this database, which areas are legacy, which conventions are law). Answered decisions become <code>Status: accepted</code>. You approve the component list, the decisions, and the proposed <code>CLAUDE.md</code> facts before they are applied, and the factory offers to commit (<code>factory: document</code>). Inferred decisions still bind later specs, but a conflict with an inferred decision is a question for you, not an automatic failure. You do this once per repo.</li>
+  <li id="feature-plan"><b>Plan a capability.</b>
+<pre><code>&gt; /software-factory:factory plan let customers invite teammates and revoke access</code></pre>
+  Because <code>docs/architecture.md</code> and <code>docs/decisions.md</code> exist, <code>plan</code> runs in <b>feature mode</b> and says so. It plans this one capability, not the product, in the same three approved passes. Everything it writes for itself goes in <code>docs/features/&lt;slug&gt;/</code> (here <code>team-invites</code>), so the next capability's plan never collides with this one.
+    <ul>
+      <li><b>Pass 1, the brief.</b> Brainstorm runs first if the request is thin. Grill then asks only about the feature: your vision, architecture and decisions are treated as settled. The planner writes <code>brief.md</code>: who it is for, the outcome, at most five Musts, what is out of scope, and which existing components it touches. You approve.</li>
+      <li><b>Pass 2, new decisions only.</b> Every recorded decision stays binding. The planner appends only what this feature needs (numbering continues, for example <code>AD14</code>), adds a <code>## Feature: team-invites</code> section with a short pre-mortem to <code>architecture.md</code>, and lists the existing decisions it relies on. If the feature needs a recorded decision changed, you are asked; the old record is marked <code>superseded by AD&lt;n&gt;</code> only if you agree, and nothing is deleted. If nothing new is needed, you approve with one line.</li>
+      <li><b>Pass 3, epics and backlog.</b> New epics are added to <code>docs/epics.md</code>, each linking back to the brief, and new lines are added to the end of <code>factory/backlog.md</code> with ids that continue from yours. There is no scaffold job. A feature plan stays small: at most three epics and about twelve items, all Must. Anything bigger is a second feature plan.</li>
+    </ul>
+  The factory offers a commit (<code>factory: plan team-invites</code>).</li>
+  <li><b>Build it.</b>
+<pre><code>&gt; /software-factory:factory run</code></pre>
+  The run works through the new items and parks only the ones that need you; see <a href="#unattended">Let it run on its own</a>. Or go one job at a time with <code>/software-factory:factory next</code>. Each job's spec-writer reads the feature brief its epic links, so specs stay inside the feature's Musts and out of scope.</li>
 </ol>
+<div class="callout"><b>One change does not need a plan.</b> For a change you can state in a sentence, skip the plan: <code>/software-factory:factory add a CSV export of the evidence list, scoped to the current tenant</code>. If something is a real product choice with no safe default (CSV or PDF, who may export), the job stops and grills you before any code is written. You can also add lines to <code>factory/backlog.md</code> by hand, for example <code>- [ ] Filter the evidence list by control id</code>, and run them with <code>next</code> or <code>run</code>.</div>
+<div class="callout warn"><b>No test suite yet?</b> If <code>CLAUDE.md</code> still has no test command, the feature plan records a test strategy decision with the exact command, writes it into <code>CLAUDE.md</code>, and makes the first backlog item a test harness (<code>(enabler: test-harness)</code>) that every other new item depends on. That one job may start without a working test command because it creates one.</div>
 <div class="callout warn"><b>Pre-existing bugs stay pre-existing.</b> Reviews judge the change against its spec. A problem that was already in the code is triaged as <code>defer</code> and logged. It is not fixed inside the feature job. If the baseline tests are already failing, the spec records that, so the builder is not blamed for it.</div>
 
 <h2 id="small">7. Ship one small change</h2>
@@ -239,17 +248,13 @@ claude
 
 <h2 id="big">8. A big capability, split into jobs</h2>
 <p>Use this when the ask is a capability, not a change. “Add billing”, “let customers invite their team”, or “support SOC 2 evidence collection” will make a spec with too many acceptance criteria, and the review will thrash.</p>
-<ol class="story">
-  <li><b>Settle the shape first.</b> If you can already describe it, run <code>/software-factory:grill let customers invite teammates and revoke access</code>. If you cannot, run <code>/software-factory:brainstorm team access</code> and then grill the direction you chose. Both write <code>docs/intent.md</code>.</li>
-  <li><b>Record the decisions that later jobs must share.</b> Add them to <code>docs/decisions.md</code> (invite by email, one role or several, what happens to data when someone is removed). Specs and reviews treat that file as binding.</li>
-  <li><b>Turn the intent into backlog lines</b>, each small enough for about five acceptance criteria, in dependency order:
+<p><b>On a product that already exists, use a feature plan:</b> <code>/software-factory:factory plan &lt;capability&gt;</code>. It settles the shape with brainstorm and grill, records the decisions later jobs must share, and writes the ordered backlog lines for you. See <a href="#feature-plan">Plan a capability</a>.</p>
+<p><b>On a brand-new product</b> you do not do this separately: <a href="#vague">pass 3</a> of the product plan already produces the ordered backlog.</p>
+<p><b>By hand</b>, if you prefer: grill the capability (<code>/software-factory:grill let customers invite teammates and revoke access</code>), add the decisions later jobs must share to <code>docs/decisions.md</code>, then write backlog lines small enough for about five acceptance criteria each, in dependency order, and run them with <code>next</code> or <code>run</code>:</p>
 <pre><code>- [ ] Invite a teammate by email to the current tenant
 - [ ] Accept an invite and land in that tenant
 - [ ] Remove a teammate and invalidate their session</code></pre>
-  </li>
-  <li><b>Run them with</b> <code>/software-factory:factory next</code>. Each one still gets its own spec, branch, review and merge. The second job sees the first job’s code on the default branch.</li>
-</ol>
-<p>On a brand-new product, you usually do not do this by hand. <a href="#vague">Pass 3</a> already produces that ordered backlog. Use this section when the product exists and the new capability showed up later.</p>
+<p>Each one still gets its own spec, branch, review and merge. The second job sees the first job’s code on the default branch.</p>
 
 <h2 id="asks">9. When the factory stops and asks you</h2>
 <p>A job in <code>needs-human</code> is paused on purpose. Read the file it points at, then answer with one of the two commands. Nothing in that state merges on its own.</p>
@@ -332,6 +337,7 @@ claude
   <tr><th>Command</th><th>Use it when</th></tr>
   <tr><td><code>/software-factory:init</code></td><td>Once per project, empty or existing</td></tr>
   <tr><td><code>/software-factory:factory plan &lt;vision&gt;</code></td><td>You are starting a product. Omit the vision to resume.</td></tr>
+  <tr><td><code>/software-factory:factory plan &lt;capability&gt;</code></td><td>The product exists (its architecture is documented) and you want one capability planned into epics and backlog items. Omit the text to resume.</td></tr>
   <tr><td><code>/software-factory:factory document</code></td><td>The code exists and agents need architecture and decisions</td></tr>
   <tr><td><code>/software-factory:factory &lt;feature&gt;</code></td><td>You want one feature through the loop now</td></tr>
   <tr><td><code>/software-factory:factory next</code></td><td>You want the first ready line in <code>factory/backlog.md</code> (unchecked, its prerequisites done)</td></tr>
@@ -359,6 +365,11 @@ docs/
   open-questions.md           the planner's questions for you (first line QUESTIONS: n)
   claude-md-proposal.md       CLAUDE.md lines the planner proposes; applied only after you approve
   answers.md  plan-notes.md   your answers to planner questions; your notes at a planning gate
+  features/&lt;slug&gt;/            one folder per feature plan
+    request.md                the words you typed into plan &lt;capability&gt;
+    brainstorm-log.md  grill-log.md  intent.md
+    brief.md                  the feature brief (pass 1); its epics link here
+    open-questions.md  answers.md  plan-notes.md  claude-md-proposal.md
 factory/
   board.json                  job stages; only the orchestrator writes this
   backlog.md                  the queue for next and run (B-ids, [E] epics, depends:)
@@ -416,7 +427,9 @@ factory/
   <tr><td>A review file never appears</td><td>The round waits until every expected reviewer has written a file. A malformed first line is re-run once.</td></tr>
   <tr><td>The merge fails with a conflict</td><td>Another job changed the same files first. The dashboard flags it on the parked job. Approving still works: your decision is recorded and the job goes back to merge the default branch in and be reviewed again. To do it by hand: <code>/software-factory:factory rework &lt;id&gt; merge the default branch into the branch and keep both sides</code>.</td></tr>
   <tr><td>Parked as <code>MERGE BLOCKED</code></td><td>Your permission settings refused the merge. Run <code>/software-factory:factory approve &lt;id&gt;</code>, or click <b>Merge the approved branch</b> and run <code>apply</code>. To prevent it, re-run <code>/software-factory:init</code> and allow <code>Bash(git merge --no-ff factory/*)</code>, or add that rule with <code>/permissions</code>.</td></tr>
-  <tr><td>A brainstorm or grill seems to start over</td><td>It resumes only from a log whose frontmatter says <code>status: open</code>. Check <code>docs/brainstorm-log.md</code> or <code>docs/grill-log.md</code>. A log marked <code>complete</code> starts a new session.</td></tr>
+  <tr><td>A brainstorm or grill seems to start over</td><td>It resumes only from a log whose frontmatter says <code>status: open</code>. Check <code>docs/brainstorm-log.md</code> or <code>docs/grill-log.md</code> (for a feature plan, the ones in <code>docs/features/&lt;slug&gt;/</code>). A log marked <code>complete</code> starts a new session.</td></tr>
+  <tr><td><code>plan</code> says to run <code>document</code> first</td><td>The repo has code but no <code>docs/architecture.md</code> and <code>docs/decisions.md</code>. A feature plan builds on them. Run <code>/software-factory:factory document</code>, then plan again.</td></tr>
+  <tr><td><code>plan</code> asks to finish another plan first</td><td>Only one plan runs at a time. Run <code>/software-factory:factory plan</code> with no text to finish the one in progress, then plan the next capability.</td></tr>
   <tr><td>The plan seems to restart</td><td>Run <code>/software-factory:factory plan</code> with no new vision. Approved pass outputs are kept. A pass re-runs only when you give notes or explicitly ask.</td></tr>
 </table>
 
