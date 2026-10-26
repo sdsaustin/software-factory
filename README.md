@@ -51,7 +51,8 @@ When the idea is vague, run brainstorm and then grill. `factory plan` runs both 
 | `docs/userguide.html` | User guide: the skills, walkthroughs, commands, files, troubleshooting |
 | `docs/factoryarchitecture.html` | Maintainer reference: architecture, file contracts, flows, invariants |
 | `docs/upgradepath.html` | Upgrading a part-built project from an older plugin version (update, restart, `init`) and resuming |
+| `tests/` | Regression suite for maintainers (not used by projects) |
 
 Read [`docs/userguide.html`](docs/userguide.html) for the skills and for walkthroughs: a vague idea through to a shipped product, adding features to existing code (`init` → `document` → `plan <capability>` → `run`), a single small change, and a large capability split into jobs. `init` also copies a shorter guide to `factory/userguide.html` in the project.
 
-Maintainers: see [`docs/factoryarchitecture.html`](docs/factoryarchitecture.html) for the architecture, file contracts, flows, invariants, maintenance playbooks and known limitations.
+Maintainers: see [`docs/factoryarchitecture.html`](docs/factoryarchitecture.html) for the architecture, file contracts, flows, invariants, maintenance playbooks and known limitations. Run `python3 tests/run.py` before every change (no network, no Claude login; CI runs it on pull requests) and `python3 tests/run.py --live` before a release (drives `claude -p` on your normal login).

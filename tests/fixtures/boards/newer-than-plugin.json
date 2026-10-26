@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "plugin_version": "9.9.0",
+  "default_branch": "main",
+  "jobs": [],
+  "retro": {"done_since": 0, "last": null},
+  "run": null
+}

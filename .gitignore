@@ -2,3 +2,6 @@
 .closedloop-ai/
 __pycache__/
 *.pyc
+
+# test harness output (live transcripts)
+tests/out/

@@ -1,0 +1,27 @@
+{
+  "version": 1,
+  "plugin_version": "1.8.0",
+  "default_branch": "master",
+  "jobs": [
+    {
+      "id": "001-greet",
+      "title": "Greet by name",
+      "track": "quick",
+      "extra_reviewers": [],
+      "skip_reviewers": [],
+      "stage": "review",
+      "round": 1,
+      "reviews": {"1": {"security": "pending", "ux": "N/A", "ui": "N/A", "code": "pending", "triage": "pending"}},
+      "decision": null,
+      "branch": "factory/001-greet",
+      "updated": "2026-10-20T08:00:00+00:00",
+      "item": "B1",
+      "epic": "E1",
+      "parked_reason": null,
+      "assumptions": 1
+    }
+  ],
+  "retro": {"done_since": 0, "last": null},
+  "run": {"status": "running", "started": "2026-10-20T07:55:00+00:00", "max_jobs": null, "budget_minutes": null,
+          "jobs_done": 0, "consecutive_failures": 0, "stop_reason": null, "current": "B1"}
+}

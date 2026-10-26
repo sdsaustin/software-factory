@@ -1,0 +1,27 @@
+{
+  "version": 1,
+  "jobs": [
+    {
+      "id": "001-greet",
+      "title": "Greet by name",
+      "track": "quick",
+      "stage": "done",
+      "round": 1,
+      "reviews": {"1": {"security": "PASS", "ux": "N/A", "ui": "N/A", "code": "PASS", "triage": "CLEAN"}},
+      "decision": "APPROVE",
+      "branch": "factory/001-greet",
+      "updated": "2026-09-30T10:00:00+00:00"
+    },
+    {
+      "id": "002-farewell",
+      "title": "Say goodbye",
+      "track": "quick",
+      "stage": "needs-human",
+      "round": 1,
+      "reviews": {"1": {"security": "PASS", "ux": "N/A", "ui": "N/A", "code": "PASS", "triage": "CLEAN"}},
+      "decision": "ESCALATE",
+      "branch": "factory/002-farewell",
+      "updated": "2026-10-01T09:30:00+00:00"
+    }
+  ]
+}

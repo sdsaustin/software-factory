@@ -1,6 +1,6 @@
 # Upgrade workplan: v1.8.0 → Claude-native factory (v2)
 
-Status: approved 2026-10-26 (D1–D6 accepted as recommended). v1.9.0 implemented on branch `release/v1.9.0`; later releases not started.
+Status: approved 2026-10-26 (D1–D6 accepted as recommended). v1.9.0 committed on `release/v1.9.0`; v1.10.0 implemented on `release/v1.10.0` (stacked on it). Both merge to main together once the live suite passes.
 Inputs: `work/upgrade_spec.md`, the v1.8.0 repo (`117b7a6`), and the subagent-folding review (items 1 and 2).
 Date: 2026-10-26
 
