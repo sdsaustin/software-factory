@@ -31,7 +31,8 @@ def test_upgrade_from_before_1_8_then_rerun_is_a_no_op(fx):
     repo = old_project(fx)
     head = fx.git(repo, "rev-parse", "HEAD")
     fixture_board = read_json(repo / "factory" / "board.json")
-    kept = tree_digest(repo, ["factory/learnings.md", "factory/jobs"])
+    user_files = ["factory/learnings.md", "factory/jobs/001-greet", "factory/jobs/002-farewell"]
+    kept = tree_digest(repo, user_files)
     with Live(fx, repo) as live:
         live.claude("/software-factory:init")
         live.claude("Yes, apply all of it. No to proposing dependencies, no to the merge permission, "
@@ -60,7 +61,8 @@ def test_upgrade_from_before_1_8_then_rerun_is_a_no_op(fx):
         assert (section(claude_md, "## Software factory") or "").strip() == template_section.strip()
         assert TEAM_NOTES in claude_md, "a user-owned section was edited"
         assert "`python3 -m unittest -q`" in claude_md, "the test command was lost"
-        assert tree_digest(repo, ["factory/learnings.md", "factory/jobs"]) == kept
+        assert tree_digest(repo, user_files) == kept, "an upgrade must never touch learnings or job files"
+        assert (repo / "factory" / "jobs" / ".gitkeep").exists(), "init creates a missing jobs/.gitkeep (U3)"
         assert fx.git(repo, "rev-parse", "HEAD") == head, "committed without being asked"
 
         # A second init on the upgraded project must change nothing.
