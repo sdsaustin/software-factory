@@ -21,7 +21,7 @@ import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 
-VERSION = "2.1.0"           # plugin version this copy shipped with
+VERSION = "2.2.0"           # plugin version this copy shipped with
 BOARD_VERSION = 2
 CONFIG_VERSION = 1
 
@@ -280,6 +280,8 @@ def job_errors(job):
                 e.append(f"{where}: {block}.{f} must be a non-negative integer")
         if block == "execution" and b.get("blocked") is not None and not isinstance(b.get("blocked"), str):
             e.append(f"{where}: execution.blocked must be text or null")
+        if block == "workspace" and b.get("path") is not None and not (isinstance(b["path"], str) and os.path.isabs(b["path"])):
+            e.append(f"{where}: workspace.path must be an absolute path or null")
         if block == "workspace" and b.get("kind") not in ("worktree", "legacy-checkout"):
             e.append(f"{where}: workspace.kind must be worktree or legacy-checkout")
     return e
@@ -843,9 +845,8 @@ def _snapshot_path(fac, role, job_id):
     return git_dir / "factory-snapshots" / f"{job_id or '-'}--{role}.json"
 
 
-def repo_state(fac):
-    """Everything an agent could change in the repository: dirty and untracked files (by content), refs, HEAD."""
-    out = fac.git("status", "--porcelain=v1", "-z", "-uall").stdout
+def _status_files(fac, cwd):
+    out = fac.git("status", "--porcelain=v1", "-z", "-uall", cwd=cwd).stdout
     files, parts, i = {}, out.split("\0"), 0
     while i < len(parts):
         entry = parts[i]
@@ -856,18 +857,34 @@ def repo_state(fac):
         if code[0] in "RC":
             files[parts[i]] = ("moved", None)  # the rename's source path
             i += 1
-        p = fac.root / path
+        p = Path(cwd) / path
         digest = None
         if p.is_file() and not p.is_symlink():
             digest = hashlib.sha256(p.read_bytes()).hexdigest()
         files[path] = (code, digest)
+    return files
+
+
+def repo_state(fac, worktree=None):
+    """Everything an agent could change: dirty and untracked files (by content), refs, HEAD, and the job's worktree."""
+    files = _status_files(fac, fac.root)
     refs = {}
     for line in fac.git("for-each-ref", "--format=%(refname) %(objectname)").stdout.splitlines():
         name, _, sha = line.partition(" ")
         if not name.startswith("refs/remotes/"):
             refs[name] = sha
     head = fac.git("symbolic-ref", "-q", "HEAD", check=False).stdout.strip() or fac.rev("HEAD") or "(none)"
-    return {"files": files, "refs": refs, "head": head}
+    state = {"files": files, "refs": refs, "head": head, "worktree": None}
+    if worktree and Path(worktree).is_dir():
+        wt_head = fac.git("symbolic-ref", "-q", "HEAD", check=False, cwd=worktree).stdout.strip() or \
+            fac.git("rev-parse", "HEAD", check=False, cwd=worktree).stdout.strip()
+        state["worktree"] = {"path": str(worktree), "files": _status_files(fac, worktree), "head": wt_head}
+    return state
+
+
+def job_worktree(job):
+    ws = job.get("workspace") or {} if job else {}
+    return ws.get("path") if ws.get("kind") == "worktree" else None
 
 
 def scope_rules(fac, board, role, job, args):
@@ -917,7 +934,7 @@ def cmd_snapshot(fac, args):
     scope_rules(fac, board, args.role, job, args)  # validates --pass/--feature now, not after the agent ran
     path = _snapshot_path(fac, args.role, job["id"] if job else None)
     path.parent.mkdir(parents=True, exist_ok=True)
-    state = dict(repo_state(fac), role=args.role, job=job["id"] if job else None, taken=now())
+    state = dict(repo_state(fac, job_worktree(job)), role=args.role, job=job["id"] if job else None, taken=now())
     write_atomic(path, json.dumps(state, indent=1, sort_keys=True))
     print(f"snapshot: {args.role}" + (f" for {job['id']}" if job else "") + " (stored under .git, outside the work tree)")
     return 0
@@ -931,7 +948,7 @@ def cmd_scope_check(fac, args):
         raise Refused(f"no snapshot for {args.role}" + (f" on {job['id']}" if job else "") +
                       ": take one with `snapshot` before spawning the agent")
     before = json.loads(path.read_text(encoding="utf-8"))
-    after = repo_state(fac)
+    after = repo_state(fac, (before.get("worktree") or {}).get("path") or job_worktree(job))
     exact, prefixes = scope_rules(fac, board, args.role, job, args)
 
     def allowed(p):
@@ -949,6 +966,25 @@ def cmd_scope_check(fac, args):
     if after["head"] != before["head"]:
         problems.append(f"left {after['head'].replace('refs/heads/', '')} checked out "
                         f"(was {before['head'].replace('refs/heads/', '')})")
+    wb, wa = before.get("worktree"), after.get("worktree")
+    if wb or wa:
+        where = (wa or wb)["path"]
+        if args.role == "builder":
+            if wa is None:
+                problems.append(f"the job worktree {where} is gone")
+            else:
+                if wa["head"] != f"refs/heads/{job['branch']}":
+                    problems.append(f"the job worktree is on {wa['head'].replace('refs/heads/', '')}, not {job['branch']}")
+                left = sorted(p for p in wa["files"] if p.rsplit("/", 1)[-1] != ".DS_Store")
+                if left:
+                    problems.append(f"uncommitted changes left in the job worktree: {', '.join(left[:8])} "
+                                    f"(verification only sees commits)")
+        else:
+            wbf = {k: tuple(v) for k, v in (wb or {}).get("files", {}).items()}
+            changed = sorted(p for p in set(wbf) | set((wa or {}).get("files", {}))
+                             if wbf.get(p) != (wa or {}).get("files", {}).get(p))
+            if changed or (wb or {}).get("head") != (wa or {}).get("head"):
+                problems.append(f"changed the job worktree {where}: {', '.join(changed[:8]) or 'its checkout'}")
     own = f"refs/heads/{job['branch']}" if job and args.role == "builder" else None
     for ref in sorted(set(before["refs"]) | set(after["refs"])):
         if before["refs"].get(ref) != after["refs"].get(ref) and ref != own:
@@ -984,6 +1020,210 @@ def cmd_scope_check(fac, args):
     else:
         print("NEXT: stop and show the human these changes")
     return 1
+
+
+def worktree_root(fac, cfg):
+    root = config_value(cfg, "workspace.root")
+    base = fac.root.parent / ".software-factory-worktrees" if root == "auto" else Path(root)
+    return base / fac.root.name
+
+
+def registered_worktrees(fac):
+    out, cur = [], {}
+    for line in fac.git("worktree", "list", "--porcelain").stdout.split("\n") + [""]:
+        if not line:
+            if cur:
+                out.append(cur)
+            cur = {}
+            continue
+        key, _, value = line.partition(" ")
+        cur[key] = value or True
+    for w in out:
+        w["real"] = os.path.realpath(w.get("worktree", ""))
+    return out
+
+
+def _find_worktree(fac, path):
+    real = os.path.realpath(str(path))
+    return next((w for w in registered_worktrees(fac) if w["real"] == real), None)
+
+
+def _dirty(fac, path):
+    return [ln[3:] for ln in fac.git("status", "--porcelain", "-uall", cwd=path).stdout.splitlines()
+            if ln[3:].rsplit("/", 1)[-1] != ".DS_Store"]
+
+
+def _check_base(fac, job):
+    base = job["workspace"].get("base_commit")
+    head = fac.rev(job["branch"])
+    if base and head and fac.git("merge-base", "--is-ancestor", base, head, check=False).returncode != 0:
+        raise Refused(f"{job['branch']} no longer contains its base commit {base[:10]}: it was rewritten outside "
+                      f"the factory; ask the human")
+
+
+def cmd_worktree(fac, args):
+    board = fac.load_board()
+    cfg = fac.load_config()
+    job = find_job(board, args.id)
+    default = board.get("default_branch")
+    ws = job["workspace"]
+    path = Path(ws["path"]) if ws.get("kind") == "worktree" and ws.get("path") else worktree_root(fac, cfg) / job["id"]
+    if path.resolve() == fac.root or fac.root in path.resolve().parents:
+        raise Refused(f"{path} is inside the project; job worktrees live outside it (config workspace.root)")
+    entry = _find_worktree(fac, path)
+
+    if args.action == "validate":
+        if not entry or entry.get("prunable"):
+            print(f"MISSING: {path}" + (" (registered, directory gone)" if entry else ""))
+            return 1
+        if entry.get("branch") != f"refs/heads/{job['branch']}":
+            print(f"WRONG BRANCH: {path} has {entry.get('branch') or 'a detached HEAD'}, not {job['branch']}")
+            return 1
+        _check_base(fac, job)
+        dirty = _dirty(fac, path)
+        print(f"OK: {path} on {job['branch']}" + (f", uncommitted: {', '.join(dirty[:8])}" if dirty else ", clean"))
+        return 0
+
+    if args.action == "remove":
+        if job["stage"] not in ("done", "cancelled"):
+            raise Refused(f"{args.id} is in {job['stage']}: keep its worktree while rework is possible")
+        if not entry or entry.get("prunable"):
+            print(f"nothing to remove: {path} is not a registered worktree")
+            return 0
+        dirty = _dirty(fac, path)
+        if dirty:
+            raise Refused(f"{path} has uncommitted changes ({', '.join(dirty[:8])}); a dirty worktree is never removed "
+                          f"automatically. Inspect it, then `git worktree remove {path}` yourself")
+        fac.git("worktree", "remove", str(path))
+        ws["path"] = None
+        job["updated"] = now()
+        fac.save_board(board)
+        fac.append_event({"kind": "worktree", "job": job["id"], "action": "removed", "path": str(path)}, cfg)
+        print(f"removed {path} (branch {job['branch']} kept)")
+        return 0
+
+    # create (idempotent; also repairs a worktree whose directory is gone)
+    if job["stage"] != "build":
+        raise Refused(f"{args.id} is in {job['stage']}; worktrees are created for a build (move it to build first)")
+    primary = fac.git("symbolic-ref", "--short", "-q", "HEAD", check=False).stdout.strip()
+    if primary != default:
+        raise Refused(f"the project checkout is on {primary or 'a detached HEAD'}, not {default}: switch back first")
+    stray = [ln[3:] for ln in fac.git("status", "--porcelain").stdout.splitlines()
+             if ln[3:] and not ln[3:].startswith(STATE_PATHS)]
+    if stray:
+        raise Refused(f"uncommitted changes outside factory/, docs/ and CLAUDE.md: {', '.join(stray[:8])}")
+    action = "reused"
+    if entry and entry.get("prunable"):
+        fac.git("worktree", "prune")
+        entry, action = None, "repaired"
+    if entry:
+        if entry.get("branch") != f"refs/heads/{job['branch']}":
+            raise Refused(f"{path} is a worktree for {entry.get('branch') or 'a detached HEAD'}, not {job['branch']}; "
+                          f"it is never reused")
+    else:
+        if path.exists():
+            raise Refused(f"{path} exists but is not this job's worktree (another repository or job, or stray files); "
+                          f"it is never reused")
+        holder = next((w for w in registered_worktrees(fac) if w.get("branch") == f"refs/heads/{job['branch']}"), None)
+        if holder:
+            raise Refused(f"{job['branch']} is already checked out at {holder['worktree']}; free it first")
+        path.parent.mkdir(parents=True, exist_ok=True)
+        if fac.rev(job["branch"]):
+            fac.git("worktree", "add", str(path), job["branch"])
+        else:
+            fac.git("worktree", "add", "-b", job["branch"], str(path), default)
+        action = "created" if action == "reused" else action
+    if not ws.get("base_commit"):
+        ws["base_commit"] = fac.git("merge-base", default, job["branch"]).stdout.strip()
+    _check_base(fac, job)
+    ws.update({"kind": "worktree", "path": str(path.resolve()), "created_at": ws.get("created_at") or now()})
+    job["updated"] = now()
+    fac.save_board(board)
+    fac.append_event({"kind": "worktree", "job": job["id"], "action": action, "path": str(path.resolve()),
+                      "base_commit": ws["base_commit"]}, cfg)
+    print(f"WORKTREE: {path.resolve()} ({action}; branch {job['branch']}, base {ws['base_commit'][:10]})")
+    return 0
+
+
+def cmd_cancel(fac, args):
+    board = fac.load_board()
+    job = find_job(board, args.id)
+    args.stage, args.evidence, args.action_id, args.actor = "cancelled", None, args.action_id, "human"
+    code = cmd_transition(fac, args)
+    if code == 0:
+        kept = [f"branch {job['branch']}"] if fac.rev(job["branch"]) else []
+        if job_worktree(job):
+            kept.append(f"worktree {job_worktree(job)}")
+        print("kept: " + (", ".join(kept) if kept else "nothing to keep") +
+              ". Nothing was deleted; items that depend on this one stay blocked until you change the backlog.")
+    return code
+
+
+def cmd_recover(fac, args):
+    board = fac.load_board()
+    cfg = fac.load_config()
+    job = find_job(board, args.id)
+    jid, stage = job["id"], job["stage"]
+    if stage in ("done", "cancelled"):
+        print(f"{jid} is {stage}: nothing to recover")
+        return 0
+    doubts = []
+    run = board.get("run") or {}
+    if run.get("status") == "running" and run.get("current") in (jid, job.get("item")):
+        doubts.append("a run is marked running with this job in flight")
+    events, _ = fac.events()
+    last = next((e for e in reversed(events) if e.get("job") == jid), None)
+    if last:
+        age = datetime.now(timezone.utc) - datetime.fromisoformat(last["at"])
+        if age.total_seconds() < 900:
+            doubts.append(f"its last event was {int(age.total_seconds() // 60)} min ago ({last.get('kind')})")
+    if doubts and not args.confirmed:
+        print("AMBIGUOUS: " + "; ".join(doubts))
+        print("NEXT: ask the human to confirm that no session is working on this job, then rerun with --confirmed")
+        return 1
+    folder = fac.dir / "jobs" / jid
+    head = fac.rev(job["branch"])
+    print(f"{jid}: stage {stage}, round {job['round']}, attempt {job['execution']['attempt']}")
+    print(f"branch: {job['branch']} " + (f"at {head[:10]}" if head else "does not exist"))
+    wt = job_worktree(job)
+    if wt:
+        entry = _find_worktree(fac, wt)
+        state = "missing" if not entry or entry.get("prunable") else \
+            ("dirty: " + ", ".join(_dirty(fac, wt)[:8])) if _dirty(fac, wt) else "clean"
+        print(f"worktree: {wt} ({state})")
+    fresh, why = freshness(fac, board, job)
+    print(f"verification: {'fresh' if fresh else 'stale'} ({why})")
+    if job["execution"].get("blocked"):
+        nxt = f"blocked ({job['execution']['blocked']}): transition {jid} needs-human --reason \"SCOPE VIOLATION: ...\""
+    elif stage == "needs-human":
+        nxt = f"parked ({job.get('parked_reason')}): not an interruption; answer it with approve or rework"
+    elif stage == "spec":
+        nxt = "readiness gate (Loop step 2) on the existing spec.md" if (folder / "spec.md").exists() \
+            else "snapshot and spawn the spec-writer (Loop step 1)"
+    elif stage == "build":
+        built = head and (folder / "build.md").exists() and \
+            int(fac.git("rev-list", "--count", f"{board['default_branch']}..{job['branch']}").stdout.strip() or 0) > 0
+        nxt = ("transition to verify and verify (Loop step 3a)" if built else
+               "`worktree create` (repairs a missing worktree), then snapshot and spawn the builder with build.md "
+               "and its notes (Loop step 3)")
+    elif stage == "verify":
+        nxt = "run factoryctl verify (Loop step 3a)"
+    elif stage == "review":
+        n = str(job["round"])
+        missing = [r for r, v in job["reviews"].get(n, {}).items()
+                   if r in REVIEWERS and v != "N/A" and not (folder / f"round-{n}" / f"{r}.md").exists()]
+        nxt = (f"snapshot reviewers and spawn {', '.join('reviewer-' + r for r in missing)} (Loop step 4)" if missing
+               else "factoryctl round, then triage (Loop steps 4-5)")
+    elif stage == "triage":
+        nxt = ("factoryctl round to record triage.md (Loop step 5)" if (folder / f"round-{job['round']}" / "triage.md").exists()
+               else "factoryctl round; spawn the triager if it says so (Loop step 5)")
+    else:  # decision
+        nxt = ("record decision.md's first line and continue Loop step 6" if (folder / "decision.md").exists()
+               else "check fresh evidence, then snapshot and spawn the approver (Loop step 6)")
+    fac.append_event({"kind": "recover", "job": jid, "stage": stage, "reason": clean(nxt, 200),
+                      "confirmed": bool(args.confirmed)}, cfg)
+    print(f"NEXT: {nxt}")
+    return 0
 
 
 def cmd_fresh(fac, args):
@@ -1247,14 +1487,39 @@ def cmd_doctor(fac, args):
             if j["stage"] in ("spec", "build", "verify", "review", "triage", "decision") and \
                     not (board.get("run") or {}).get("status") == "running":
                 add("WARN", f"{j['id']} is mid-loop in {j['stage']} with no run active",
-                    f"if no session is working on it: /software-factory:factory rework {j['id']} resume after interruption")
+                    f"if no session is working on it: /software-factory:factory recover {j['id']}")
         for b in sorted(branches):
             if b.split("/", 1)[1] not in jobs:
                 add("WARN", f"branch {b} has no job on the board", f"inspect it; delete it yourself if unwanted")
-        for line in fac.git("worktree", "list", "--porcelain", check=False).stdout.split("\n\n"):
-            if "prunable" in line:
-                path = line.split("\n")[0].replace("worktree ", "")
-                add("WARN", f"stale worktree record {path}", "git worktree prune")
+        try:
+            cfg = fac.load_config()
+        except Refused:
+            cfg = json.loads(json.dumps(DEFAULT_CONFIG))  # already reported above; keep checking with defaults
+        root = os.path.realpath(str(worktree_root(fac, cfg)))
+        retain = config_value(cfg, "workspace.retain_completed")
+        wts = registered_worktrees(fac)
+        owned = {}
+        for j in board["jobs"]:
+            wt = job_worktree(j)
+            if wt:
+                owned[os.path.realpath(wt)] = j
+                entry = _find_worktree(fac, wt)
+                if j["stage"] not in ("done", "cancelled") and (not entry or entry.get("prunable")):
+                    add("WARN", f"{j['id']}'s worktree {wt} is missing", f"/software-factory:factory recover {j['id']}")
+                elif j["stage"] in ("done", "cancelled") and entry and not entry.get("prunable"):
+                    dirty = _dirty(fac, wt)
+                    if dirty:
+                        add("WARN", f"{j['id']} is {j['stage']} but its worktree has uncommitted changes: "
+                                    f"{', '.join(dirty[:5])}", f"inspect {wt}; it is never removed automatically")
+                    elif not retain:
+                        add("WARN", f"{j['id']} is {j['stage']} and its clean worktree is still there",
+                            f"python3 factory/factoryctl.py worktree remove {j['id']}")
+        for w in wts:
+            if w.get("prunable"):
+                add("WARN", f"stale worktree record {w.get('worktree')} (directory gone)", "git worktree prune")
+            elif w["real"].startswith(root + os.sep) and w["real"] not in owned:
+                add("WARN", f"worktree {w.get('worktree')} belongs to no job on the board",
+                    f"inspect it, then git worktree remove {w.get('worktree')} if it is unneeded")
     if board:
         try:
             inbox = json.loads((fac.dir / "inbox.json").read_text(encoding="utf-8")).get("entries", [])
@@ -1327,6 +1592,17 @@ def main(argv=None):
         p.add_argument("--job")
         p.add_argument("--pass", dest="pass_", help="planner pass: 1, 2, 3 or DOC")
         p.add_argument("--feature", help="planner: the feature plan's slug")
+    p = sub.add_parser("worktree", help="the job's own worktree outside the project: create (idempotent, repairs), "
+                                        "validate, remove (clean and finished only)")
+    p.add_argument("action", choices=["create", "validate", "remove"])
+    p.add_argument("id")
+    p = sub.add_parser("recover", help="after an interruption: report the job's state and the step to resume from")
+    p.add_argument("id")
+    p.add_argument("--confirmed", action="store_true", help="the human confirmed no session is working on it")
+    p = sub.add_parser("cancel", help="move a job to cancelled; deletes nothing")
+    p.add_argument("id")
+    p.add_argument("--reason", required=True)
+    p.add_argument("--action-id")
     p = sub.add_parser("fresh", help="exit 0 if the job's verification still holds")
     p.add_argument("id")
     p = sub.add_parser("ready", help="backlog items and why each is or is not ready (read-only)")

@@ -349,6 +349,8 @@ claude
   <tr><td><code>/software-factory:factory run [--max-jobs N] [--until E2] [--budget min]</code></td><td>You want the whole backlog worked through without you, stopping only when something needs a human. <code>run resume</code> continues after you answer.</td></tr>
   <tr><td><code>/software-factory:factory apply</code></td><td>You clicked approve, rework or resume on the dashboard and want it carried out</td></tr>
   <tr><td><code>/software-factory:factory status</code></td><td>You want each job’s stage, track and verdicts</td></tr>
+  <tr><td><code>/software-factory:factory recover &lt;id&gt;</code></td><td>A session died mid-job: resume the job from the step it was on</td></tr>
+  <tr><td><code>/software-factory:factory cancel &lt;id&gt; [reason]</code></td><td>Stop a job for good; nothing is deleted</td></tr>
   <tr><td><code>/software-factory:factory doctor</code></td><td>Something looks off: it checks the board, config, branches, worktrees, inbox and queued clicks, and prints a fix for each finding. It changes nothing.</td></tr>
   <tr><td><code>/software-factory:factory approve &lt;id&gt;</code></td><td>You have read <code>decision.md</code> and want a paused job merged</td></tr>
   <tr><td><code>/software-factory:factory rework &lt;id&gt; &lt;note&gt;</code></td><td>You want the builder to change course, then be reviewed again</td></tr>
@@ -380,7 +382,7 @@ factory/
   board.json                  job stages; changed only by the orchestrator, through factoryctl.py
   factoryctl.py               the state tool: validates every change, refuses rather than guesses
   events.jsonl                append-only history of every stage change (who, when, why)
-  config.json                 your settings: verification commands on or off, run stop rule
+  config.json                 your settings: verification commands on or off, run stop rule, where job worktrees live
   backlog.md                  the queue for next and run (B-ids, [E] epics, depends:)
   inbox.md  inbox.json        parked jobs waiting for you (written by run); inbox.json drives the dashboard buttons
   actions.jsonl               what you clicked on the dashboard; written only by server.py
@@ -430,7 +432,8 @@ factory/
   <tr><th>What you see</th><th>What to do</th></tr>
   <tr><td>Every factory command starts with “Project files are from … run /software-factory:init to upgrade them”</td><td>The plugin was updated but this project was not. Run <code>/software-factory:init</code> and confirm the summary. See <a href="#update">Updating the plugin</a>.</td></tr>
   <tr><td>“This project was upgraded with plugin …; update yours”, or init stops saying the project is newer</td><td>A teammate upgraded the project with a newer plugin than yours. Update from <code>/plugin</code>, restart Claude Code, and carry on; do not downgrade the project files.</td></tr>
-  <tr><td>A job is stuck in <code>spec</code>, <code>build</code>, <code>review</code>, <code>triage</code> or <code>decision</code> and no session is running it</td><td>The session that ran it was interrupted. Run <code>/software-factory:factory rework &lt;id&gt; resume after interruption</code>; it restarts the job from its files.</td></tr>
+  <tr><td>A job is stuck in <code>spec</code>, <code>build</code>, <code>verify</code>, <code>review</code>, <code>triage</code> or <code>decision</code> and no session is running it</td><td>The session that ran it was interrupted. Run <code>/software-factory:factory recover &lt;id&gt;</code>: it checks nothing is still working on the job (and asks you if it cannot tell), re-creates a missing worktree with its commits, and resumes from the exact step that was cut off.</td></tr>
+  <tr><td>You no longer want a job</td><td><code>/software-factory:factory cancel &lt;id&gt; [reason]</code>. Its branch and worktree are kept for you to inspect or delete; items that depend on it stay blocked until you edit the backlog.</td></tr>
   <tr><td>The job stops at <code>needs-human</code> immediately</td><td>Open <code>spec.md</code>. Either the test command in <code>CLAUDE.md</code> is still <code>&lt;TBD&gt;</code>, or <b>Open decisions</b> is not empty. Answer, then let the spec run again.</td></tr>
   <tr><td>A message that the working tree must be clean, or that the default branch is not checked out</td><td>Commit or stash changes outside <code>factory/</code>, <code>docs/</code> and <code>CLAUDE.md</code>, switch to the default branch, and rerun. <code>/software-factory:factory status</code> shows the branch name the factory recorded.</td></tr>
   <tr><td>The dashboard cannot load <code>board.json</code></td><td>Run <code>python3 factory/server.py</code> and open the URL it prints (or <code>python3 -m http.server</code> inside <code>factory/</code> for view-only).</td></tr>

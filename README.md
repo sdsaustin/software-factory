@@ -33,7 +33,7 @@ In any project:
 | Skill | Use it when |
 |---|---|
 | `init` | Once per project: sets up `factory/` and `CLAUDE.md`, offers the merge permission. Again after each plugin update: upgrades the project |
-| `factory` | Everything else: `plan` (a product, or one capability on existing code), `document`, `<feature>`, `next`, `run`, `apply`, `approve`, `rework`, `signoff`, `status`, `doctor`, `retro` |
+| `factory` | Everything else: `plan` (a product, or one capability on existing code), `document`, `<feature>`, `next`, `run`, `apply`, `approve`, `rework`, `signoff`, `recover`, `cancel`, `status`, `doctor`, `retro` |
 | `brainstorm` | The idea is vague. It widens: a coach draws out many options from you, one prompt at a time, then you narrow them with MoSCoW into `docs/intent.md` |
 | `grill` | You have a direction. It narrows: numbered rounds of questions (`[recommend]` ones carry a suggested answer, `[open]` product calls do not) until nothing is assumed; decisions go to `docs/grill-log.md` and `docs/intent.md` |
 

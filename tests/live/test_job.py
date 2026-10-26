@@ -24,6 +24,10 @@ def _run_one_job(fx, repo, live):
         assert job["stage"] == "needs-human", f"job stopped mid-loop in stage {job['stage']}"
         assert not reason.startswith(("AGENT FAILURE", "VERIFY FAIL")), f"parked on plumbing: {reason}"
         print(f"  note: job parked for a human ({reason}); the v1.9.0 checks still apply")
+    assert fx.git(repo, "branch", "--show-current") == "main", "the project checkout left the default branch"
+    assert job["workspace"]["kind"] == "worktree", "the builder did not get its own worktree"
+    if job["stage"] == "done":
+        assert job["workspace"]["path"] is None, "a finished job's clean worktree should be removed"
     return job, repo / "factory" / "jobs" / job["id"]
 
 

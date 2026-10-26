@@ -50,6 +50,7 @@ th{background:var(--code)}
 <p>You describe a feature in one line. The factory turns it into a written spec, builds it on its own git branch, has independent reviewers check it, and either merges it or hands it to you with a clear question. You keep the decisions that need judgment; the factory handles the rest.</p>
 <ul>
   <li><b>Files, not chat.</b> Every agent reads its context from files and writes exactly one file. Nothing depends on a conversation staying alive.</li>
+  <li><b>Your checkout stays put.</b> Each job is built in its own git worktree next to the project (<code>../.software-factory-worktrees/&lt;project&gt;/&lt;job&gt;/</code>), so your checkout never leaves the default branch and you can keep working in it. A finished job's clean worktree is removed; its branch is kept.</li>
   <li><b>One writer of state.</b> Only the <code>/factory</code> session changes <code>factory/board.json</code>, and only through the state tool <code>factory/factoryctl.py</code>, which checks every change (allowed stage moves, tests passed on the exact commit being approved) and logs it to <code>events.jsonl</code>.</li>
   <li><b>Process fits the size of the work.</b> Small changes use the <code>quick</code> track; larger ones use <code>full</code>.</li>
   <li><b>You stay in control.</b> Anything uncertain becomes <code>needs-human</code>; nothing risky merges silently.</li>
@@ -212,6 +213,8 @@ th{background:var(--code)}
   <tr><td><code>/factory apply</code></td><td>Carry out the approve / rework / resume actions you queued by clicking on the dashboard</td></tr>
   <tr><td><code>/factory next</code></td><td>Run the first ready item in <code>factory/backlog.md</code> (unchecked, its <code>depends:</code> items done). It is ticked only when its job merges.</td></tr>
   <tr><td><code>/factory status</code></td><td>Print the board: each job's stage, track and verdicts</td></tr>
+  <tr><td><code>/factory recover &lt;id&gt;</code></td><td>Resume a job an interrupted session left mid-loop</td></tr>
+  <tr><td><code>/factory cancel &lt;id&gt; [reason]</code></td><td>Stop a job for good; its branch and worktree are kept</td></tr>
   <tr><td><code>/factory doctor</code></td><td>Health check: board, config, branches, inbox and queued clicks, with a fix for each finding. Changes nothing.</td></tr>
   <tr><td><code>/factory approve &lt;id&gt;</code></td><td>Merge a <code>needs-human</code> job after you have read its <code>decision.md</code></td></tr>
   <tr><td><code>/factory rework &lt;id&gt; &lt;note&gt;</code></td><td>Send a job back to the builder with your feedback, then re-review</td></tr>
@@ -338,7 +341,7 @@ factory/
   <tr><th>Symptom</th><th>Likely cause and fix</th></tr>
   <tr><td>Commands start with “Project files are from … run /software-factory:init”</td><td>The plugin was updated but this project was not. Run <code>/software-factory:init</code>; it upgrades the dashboard, server and this guide after one confirmation.</td></tr>
   <tr><td>“This project was upgraded with plugin …; update yours”</td><td>A teammate used a newer plugin. Update yours from <code>/plugin</code> and restart Claude Code.</td></tr>
-  <tr><td>A job sits in <code>spec</code> to <code>decision</code> with nothing running</td><td>Its session was interrupted. <code>/factory rework &lt;id&gt; resume after interruption</code> restarts it from its files.</td></tr>
+  <tr><td>A job sits in <code>spec</code> to <code>decision</code> with nothing running</td><td>Its session was interrupted. <code>/factory recover &lt;id&gt;</code> resumes it from the step that was cut off (it asks you first if a session might still be working on it).</td></tr>
   <tr><td>Job stops at <code>needs-human</code> immediately</td><td>Test command missing in <code>CLAUDE.md</code>, or the spec has open decisions. Check <code>spec.md</code>. A project with no tests can get one from a feature plan, which puts a test-harness job first.</td></tr>
   <tr><td><code>/factory plan</code> says to run <code>document</code> first</td><td>The repo has code but no <code>docs/architecture.md</code> and <code>docs/decisions.md</code>. Run <code>/factory document</code>, then plan again.</td></tr>
   <tr><td><code>/factory plan</code> asks to finish another plan first</td><td>One plan runs at a time. Run <code>/factory plan</code> with no text to finish it.</td></tr>
