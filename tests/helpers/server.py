@@ -18,11 +18,15 @@ def free_port():
         return s.getsockname()[1]
 
 
-def load_module(factory_dir):
-    """Import the server.py copy in `factory_dir`, so its ROOT is that directory."""
-    spec = importlib.util.spec_from_file_location(f"factory_server_{id(factory_dir)}", factory_dir / "server.py")
+def load_module(factory_dir, name="server.py"):
+    """Import a module from `factory_dir` (default server.py, so its ROOT is that directory)."""
+    spec = importlib.util.spec_from_file_location(f"factory_{name[:-3]}_{id(factory_dir)}", factory_dir / name)
     mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
+    saved, sys.dont_write_bytecode = sys.dont_write_bytecode, True  # never leave __pycache__ in templates/
+    try:
+        spec.loader.exec_module(mod)
+    finally:
+        sys.dont_write_bytecode = saved
     return mod
 
 

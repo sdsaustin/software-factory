@@ -3,8 +3,9 @@ from helpers import FACTORY_TEMPLATES, FIXTURES, TEMPLATES, plugin_version, read
 from helpers.live import Live
 from helpers.projects import OLD_BACKLOG_ITEMS, TEAM_NOTES, old_project, section
 
-COPIED = ["dashboard.html", "server.py", "userguide.html", "backlog.md", "learnings.md"]
-REFRESHED = ["dashboard.html", "server.py", "userguide.html"]
+COPIED = ["dashboard.html", "server.py", "userguide.html", "backlog.md", "learnings.md", "factoryctl.py", "config.json",
+          "events.jsonl"]
+REFRESHED = ["factoryctl.py", "dashboard.html", "server.py", "userguide.html"]
 
 
 def test_init_new_project(fx):
@@ -16,7 +17,7 @@ def test_init_new_project(fx):
 
     board = read_json(repo / "factory" / "board.json")
     assert board["plugin_version"] == plugin_version(), "the session did not load this checkout's plugin"
-    assert board["default_branch"] == "main" and board["jobs"] == [] and board["run"] is None
+    assert board["version"] == 2 and board["default_branch"] == "main" and board["jobs"] == [] and board["run"] is None
     for name in COPIED:
         assert (repo / "factory" / name).read_bytes() == (FACTORY_TEMPLATES / name).read_bytes(), name
     assert (repo / "factory" / "jobs" / ".gitkeep").exists()
@@ -39,8 +40,13 @@ def test_upgrade_from_before_1_8_then_rerun_is_a_no_op(fx):
         board = read_json(repo / "factory" / "board.json")
         assert board["plugin_version"] == plugin_version()
         assert board["default_branch"] == "main"
-        assert board["run"] is None and board["retro"] == {"done_since": 0, "last": None}
-        assert board["jobs"] == fixture_board["jobs"], "an upgrade must never rewrite jobs"
+        assert board["version"] == 2 and board["run"] is None and board["retro"] == {"done_since": 0, "last": None}
+        for was, now in zip(fixture_board["jobs"], board["jobs"]):
+            assert {k: now[k] for k in was} == was, f"the upgrade rewrote job {was['id']}"
+            assert now["evidence"]["verified_commit"] is None and now["workspace"]["kind"] == "legacy-checkout"
+        assert len(board["jobs"]) == len(fixture_board["jobs"])
+        assert read_json(repo / "factory" / "config.json") == read_json(FACTORY_TEMPLATES / "config.json")
+        assert '"kind": "migrate"' in (repo / "factory" / "events.jsonl").read_text()
         for name in REFRESHED:
             assert (repo / "factory" / name).read_bytes() == (FACTORY_TEMPLATES / name).read_bytes(), name
         backlog = (repo / "factory" / "backlog.md").read_text().splitlines()

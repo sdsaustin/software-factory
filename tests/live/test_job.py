@@ -3,6 +3,7 @@
 Covers the v1.9.0 paths: verification right after the build (before any reviewer), the FINDINGS line,
 the orchestrator's triage skip on a clean round, and the builder's verify fix when the clean-copy run fails.
 """
+import json
 import re
 
 from helpers import read_json
@@ -38,6 +39,11 @@ def _check_verify_md(fx, repo, job, jobdir):
     assert head.startswith(cand.group(1)), f"verify.md tested {cand.group(1)}, branch head is {head}"
 
 
+def _events(repo, job):
+    lines = (repo / "factory" / "events.jsonl").read_text().splitlines()
+    return [e for e in (json.loads(line) for line in lines if line.strip()) if e.get("job") == job["id"]]
+
+
 def _round_one(jobdir):
     """{reviewer file stem: (verdict, findings)} for round 1, and the triage text."""
     rnd = jobdir / "round-1"
@@ -58,6 +64,8 @@ def test_clean_job_verifies_before_review(fx):
     with Live(fx, repo) as live:
         job, jobdir = _run_one_job(fx, repo, live)
     _check_verify_md(fx, repo, job, jobdir)
+    log = [(e["kind"], e.get("to") or e.get("result")) for e in _events(repo, job)]
+    assert log.index(("verify", "PASS")) < log.index(("transition", "review")), log
     reviews, triage = _round_one(jobdir)
     clean = all(v == "VERDICT: PASS" and n == 0 for v, n in reviews.values())
     events = live.tool_events()
@@ -89,6 +97,10 @@ def test_red_build_gets_a_verify_fix_before_review(fx):
                               "from a git archive copy"
     assert "## Verify fix" in (jobdir / "build.md").read_text(), "builder was not given the verify fix"
     _check_verify_md(fx, repo, job, jobdir)
+    log = [(e["kind"], e.get("to") or e.get("result")) for e in _events(repo, job)]
+    fail, review = log.index(("verify", "FAIL")), log.index(("transition", "review"))
+    assert fail < log.index(("verify", "PASS")) < review, f"reviewers started before the verify fix passed: {log}"
+    assert ("transition", "build") in log[fail:review], log
     first_review = min((jobdir / "round-1" / f"{s}.md").stat().st_mtime
                        for s in REVIEW_FILES if (jobdir / "round-1" / f"{s}.md").exists())
     assert sentinel.stat().st_mtime < first_review, "a reviewer wrote its file before the failing verify"

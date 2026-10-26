@@ -50,7 +50,7 @@ th{background:var(--code)}
 <p>You describe a feature in one line. The factory turns it into a written spec, builds it on its own git branch, has independent reviewers check it, and either merges it or hands it to you with a clear question. You keep the decisions that need judgment; the factory handles the rest.</p>
 <ul>
   <li><b>Files, not chat.</b> Every agent reads its context from files and writes exactly one file. Nothing depends on a conversation staying alive.</li>
-  <li><b>One writer of state.</b> Only the <code>/factory</code> session writes <code>factory/board.json</code>, so the dashboard never sees half-written state.</li>
+  <li><b>One writer of state.</b> Only the <code>/factory</code> session changes <code>factory/board.json</code>, and only through the state tool <code>factory/factoryctl.py</code>, which checks every change (allowed stage moves, tests passed on the exact commit being approved) and logs it to <code>events.jsonl</code>.</li>
   <li><b>Process fits the size of the work.</b> Small changes use the <code>quick</code> track; larger ones use <code>full</code>.</li>
   <li><b>You stay in control.</b> Anything uncertain becomes <code>needs-human</code>; nothing risky merges silently.</li>
   <li><b>It grills before it guesses.</b> When the factory needs decisions (a raw vision, or a spec with open questions) it interviews you with the bundled <code>grill</code> skill until nothing is left assumed. Questions come in numbered rounds. Routine ones (<code>[recommend]</code>) carry a suggested answer; product-defining ones (<code>[open]</code>) do not, so the call is yours. You can also run <code>/software-factory:grill &lt;topic&gt;</code> on any idea.</li>
@@ -212,6 +212,7 @@ th{background:var(--code)}
   <tr><td><code>/factory apply</code></td><td>Carry out the approve / rework / resume actions you queued by clicking on the dashboard</td></tr>
   <tr><td><code>/factory next</code></td><td>Run the first ready item in <code>factory/backlog.md</code> (unchecked, its <code>depends:</code> items done). It is ticked only when its job merges.</td></tr>
   <tr><td><code>/factory status</code></td><td>Print the board: each job's stage, track and verdicts</td></tr>
+  <tr><td><code>/factory doctor</code></td><td>Health check: board, config, branches, inbox and queued clicks, with a fix for each finding. Changes nothing.</td></tr>
   <tr><td><code>/factory approve &lt;id&gt;</code></td><td>Merge a <code>needs-human</code> job after you have read its <code>decision.md</code></td></tr>
   <tr><td><code>/factory rework &lt;id&gt; &lt;note&gt;</code></td><td>Send a job back to the builder with your feedback, then re-review</td></tr>
   <tr><td><code>/factory signoff &lt;id&gt; [note]</code></td><td>Sign off a job's <code>[sign-off]</code> criteria (for example a product-owner OK) while it is still being built; it still needs review and the approver before it merges</td></tr>
@@ -259,7 +260,10 @@ docs/                              vision, brief, architecture, decisions, epics
   brainstorm-log.md  grill-log.md  session logs from brainstorm and grill (resumable)
   intent.md                        the chosen direction and decisions, input to the planner
 factory/
-  board.json                       job state (orchestrator writes it)
+  board.json                       job state (changed only through factoryctl.py)
+  factoryctl.py                    the state tool the orchestrator uses for every change
+  events.jsonl                     history of every stage change: who, when, why
+  config.json                      your settings (verification commands on or off, run stop rule)
   backlog.md                       queue for /factory next and /factory run (B-ids, [E] epics, depends:)
   inbox.md  inbox.json             parked jobs waiting for you (written by /factory run); inbox.json drives the dashboard buttons
   server.py                        local dashboard server; queues your clicks into actions.jsonl
@@ -302,7 +306,7 @@ factory/
 <h2 id="dashboard">The dashboard</h2>
 <p>Run the server shown in Setup and open the URL it prints. It refreshes every 3 seconds.</p>
 <ul>
-  <li>Columns follow the stages: spec, build, review, triage, decision, needs-human, done.</li>
+  <li>Columns follow the stages: spec, build, verify, review, triage, decision, needs-human, done, cancelled.</li>
   <li>Each card shows the track and one chip per reviewer per round: <span class="pass">PASS</span>, <span class="chg">CHANGES</span> or grey while pending.</li>
   <li><code>needs-human</code> cards are outlined in amber. Those are the ones waiting on you.</li>
   <li>Click a card to read its spec, build notes, reviews, triage and decision.</li>

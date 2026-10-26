@@ -4,6 +4,7 @@ import os
 import re
 import shutil
 import subprocess
+import sys
 import tempfile
 from pathlib import Path
 
@@ -57,6 +58,11 @@ class Fixture:
     def git(self, repo, *args, check=True):
         return self.run(["git", *args], cwd=repo, check=check).stdout.strip()
 
+    def ctl(self, repo, *args, check=True):
+        """Run the project's factory/factoryctl.py; returns the CompletedProcess."""
+        return self.run([sys.executable, "-I", str(repo / "factory" / "factoryctl.py"), *args], cwd=repo,
+                        check=check, timeout=300)
+
     def make_repo(self, name="proj", branch="main", files=None):
         """A git repo with one commit holding `files` ({relative path: text})."""
         repo = self.root / name
@@ -76,7 +82,8 @@ class Fixture:
         (factory / "jobs").mkdir(parents=True)
         (factory / "jobs" / ".gitkeep").write_text("")
         for src in FACTORY_TEMPLATES.iterdir():
-            shutil.copy2(src, factory / src.name)
+            if src.is_file():
+                shutil.copy2(src, factory / src.name)
         board = json.loads((FACTORY_TEMPLATES / "board.json").read_text())
         board["plugin_version"] = version or plugin_version()
         board["default_branch"] = default_branch

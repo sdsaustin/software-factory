@@ -93,14 +93,14 @@ svg .h{font-weight:600;font-size:12.5px}
 <p>The factory is a <b>prompt-defined multi-agent system</b>. There is no daemon and almost no application code in the plugin: everything is markdown instructions (skills and agents), a few templates (including the optional stdlib-only dashboard server <code>server.py</code>), and two JSON manifests. Claude Code is the runtime. One <b>orchestrator</b> skill runs in the user's main session and spawns <b>subagents</b> that each do one job and write one file. State between steps lives in plain files in the user's project, so any step can be inspected, edited or re-run by a human.</p>
 <div class="grid2">
 <div class="callout"><b>Two audiences</b><br>Users run slash commands in their project. Maintainers (you) edit the plugin repo. Behavior changes by editing prompts, so most "bugs" are prompt bugs and are fixed in <code>skills/*/SKILL.md</code> or <code>agents/*.md</code>.</div>
-<div class="callout warn"><b>Key caveat</b><br>Most rules ("an agent writes only its own file", "only the orchestrator writes board.json") are <i>conventions in prompts</i>, not enforced by permissions. See <a href="#limits">Known limitations</a>.</div>
+<div class="callout warn"><b>Key caveat</b><br>Since 2.0.0 the board is written only through <code>factory/factoryctl.py</code>, which enforces its schema, the allowed stage moves and commit-bound verification in code. Most other rules ("an agent writes only its own file") are still <i>conventions in prompts</i>, not enforced by permissions. See <a href="#limits">Known limitations</a>.</div>
 </div>
 
 <h2 id="principles">2. Design principles</h2>
 <table>
 <tr><th>Principle</th><th>How it shows up</th><th>Origin</th></tr>
 <tr><td>Files, not conversation</td><td>Agents read context from files and write exactly one file; nothing depends on chat history.</td><td>zazencodes factory</td></tr>
-<tr><td>Single writer of state</td><td>Only the orchestrator writes <code>factory/board.json</code>, so the dashboard never sees partial state.</td><td>zazencodes</td></tr>
+<tr><td>Single writer of state</td><td>Only the orchestrator changes <code>factory/board.json</code>, and only through <code>factoryctl.py</code> (validated, atomic, logged to <code>events.jsonl</code>), so the dashboard never sees partial or invalid state.</td><td>zazencodes</td></tr>
 <tr><td>Fixed verdict grammar</td><td>First line of each output is machine-readable (<code>VERDICT:</code> plus a second line <code>FINDINGS:</code>, <code>TRIAGE:</code>, <code>APPROVE/ESCALATE</code>, <code>QUESTIONS:</code>).</td><td>zazencodes</td></tr>
 <tr><td>Round completeness</td><td>A review round is complete only when every expected reviewer file exists; the builder is never resumed mid-round.</td><td>zazencodes</td></tr>
 <tr><td>Right-sized process</td><td><code>quick</code> vs <code>full</code> track chosen per job.</td><td>BMAD</td></tr>
@@ -128,7 +128,8 @@ svg .h{font-weight:600;font-size:12.5px}
 │  └─ triager.md  approver.md  retro.md
 ├─ templates/              copied into user projects by init
 │  ├─ project-context.md   block appended to CLAUDE.md (marker: software-factory:project-context)
-│  └─ factory/             board.json  backlog.md  learnings.md  dashboard.html  server.py  userguide.html
+│  └─ factory/             board.json  backlog.md  learnings.md  config.json  events.jsonl  factoryctl.py
+│                          dashboard.html  server.py  userguide.html
 ├─ docs/
 │  ├─ factoryarchitecture.html   this document
 │  ├─ userguide.html             how to use the factory (skills, scenarios)
@@ -229,7 +230,10 @@ svg .h{font-weight:600;font-size:12.5px}
 <h3 id="templates">6.3 Templates</h3>
 <table>
 <tr><th>Template</th><th>Becomes</th><th>Notes</th></tr>
-<tr><td><code>templates/factory/board.json</code></td><td><code>factory/board.json</code></td><td><code>{"version":1,"plugin_version":null,"default_branch":null,"jobs":[],"retro":…,"run":null}</code>; <code>init</code> fills <code>default_branch</code> and <code>plugin_version</code>.</td></tr>
+<tr><td><code>templates/factory/board.json</code></td><td><code>factory/board.json</code></td><td><code>{"version":2,"plugin_version":null,"default_branch":null,"jobs":[],"retro":…,"run":null}</code>; <code>init</code> fills <code>default_branch</code> and <code>plugin_version</code> through <code>factoryctl set</code>.</td></tr>
+<tr><td><code>templates/factory/factoryctl.py</code></td><td><code>factory/factoryctl.py</code></td><td>The state tool (stdlib only; plugin-owned, refreshed on upgrade). The only code path that writes <code>board.json</code>: schema and config validation, the stage transition table and its gates, <code>verify</code> (runs the commands on the exact branch head or merge result, writes <code>verify.md</code>/<code>branch.diff</code>, records <code>evidence</code>), <code>round</code> (records verdicts, writes the clean-round <code>triage.md</code>), <code>ready</code>, <code>event</code>, <code>migrate</code>, and the read-only <code>check</code>, <code>status</code>, <code>doctor</code>. Exit codes: 0 ok, 1 refused or FAIL, 3 could not run, 4 merge conflict. Its <code>VERSION</code> must equal the plugin version (a contract test checks it).</td></tr>
+<tr><td><code>templates/factory/config.json</code></td><td><code>factory/config.json</code></td><td>Project settings, user-owned: <code>workspace</code> (reserved for job worktrees), <code>run.parallel_jobs</code> (must be 1), <code>run.max_consecutive_failures</code>, <code>verification.run_test|run_lint|run_build</code>, <code>audit.events</code>. Unknown fields are kept; secret-looking keys are refused; upgrades add missing fields only.</td></tr>
+<tr><td><code>templates/factory/events.jsonl</code></td><td><code>factory/events.jsonl</code></td><td>Empty at init. Append-only audit log written by <code>factoryctl</code>: one JSON object per line (<code>created</code>, <code>transition</code>, <code>verify</code>, failures, <code>migrate</code>), UTC timestamps, one-line sanitized reasons. Committed with the rest of <code>factory/</code>.</td></tr>
 <tr><td><code>templates/factory/backlog.md</code></td><td><code>factory/backlog.md</code></td><td>Queue; lines <code>- [ ] B1 [E1] text (depends: B0)</code>. <code>B&lt;n&gt;</code> ids and <code>depends:</code> are written by the planner; <code>/factory next</code> and <code>run</code> pick the first <b>ready</b> item.</td></tr>
 <tr><td><code>templates/factory/learnings.md</code></td><td><code>factory/learnings.md</code></td><td>Append-only lessons; read by all agents.</td></tr>
 <tr><td><code>templates/factory/dashboard.html</code></td><td><code>factory/dashboard.html</code></td><td>Self-contained board (with a built-in Markdown viewer for job files). Columns = stages; chips from <code>reviews</code>; click-through to job files; polls every 3 s. Also renders the run banner, the <b>Needs you</b> inbox with clickable options, the backlog queue (ready/blocked/parked) and epic progress and planning progress, and queues human actions through <code>server.py</code> (falls back to copy-the-command when the server or token is missing). Does <b>not</b> show <code>document</code> state.</td></tr>
@@ -261,7 +265,7 @@ docs/                              created by plan / document / grill / brainsto
     answers.md  plan-notes.md      human answers, notes       (grill / orchestrator)
     claude-md-proposal.md          FEATURE PASS 3             (planner)
 factory/
-  board.json  backlog.md  learnings.md  dashboard.html  server.py  userguide.html
+  board.json  backlog.md  learnings.md  config.json  events.jsonl  factoryctl.py  dashboard.html  server.py  userguide.html
   retro-proposal.md
   followups.md                     out-of-scope issues, once each, with the jobs that raised them (orchestrator)
   inbox.md  inbox.json             parked jobs awaiting a human            (orchestrator, during run)
@@ -277,7 +281,9 @@ factory/
 <h3 id="ownership">7.2 Ownership matrix (who may write)</h3>
 <table>
 <tr><th>File(s)</th><th>Owner</th><th>Others</th></tr>
-<tr><td><code>factory/board.json</code></td><td>orchestrator</td><td>agents: read <code>default_branch</code> only; <code>init</code>: sets <code>default_branch</code> and <code>plugin_version</code>, and on upgrade adds missing top-level fields, only after the human confirms no session is running</td></tr>
+<tr><td><code>factory/board.json</code></td><td>orchestrator, only through <code>factoryctl.py</code></td><td>agents: read <code>default_branch</code> only; <code>init</code>: sets <code>default_branch</code> and <code>plugin_version</code> and runs <code>factoryctl migrate</code> on upgrade, only after the human confirms no session is running</td></tr>
+<tr><td><code>factory/events.jsonl</code></td><td><code>factoryctl.py</code> (append-only)</td><td>nothing rewrites it; a truncated last line is reported and skipped</td></tr>
+<tr><td><code>factory/config.json</code></td><td>human; <code>init</code> creates it and adds missing fields on upgrade</td><td><code>factoryctl</code> reads and validates it before every command</td></tr>
 <tr><td><code>factory/backlog.md</code></td><td>human; orchestrator ticks items; planner PASS 3 writes it; FEATURE PASS 3 only appends</td><td>—</td></tr>
 <tr><td><code>docs/decisions.md</code> <code>docs/architecture.md</code> <code>docs/epics.md</code></td><td>planner (PASS 2/3, DOC); FEATURE passes only append, except marking an <code>AD</code> superseded when the human chose that</td><td>spec-writer, reviewers, triager read</td></tr>
 <tr><td><code>docs/features/&lt;slug&gt;/</code></td><td>orchestrator (<code>request.md</code>, notes), brainstorm/grill (logs, <code>intent.md</code>), planner (FEATURE passes)</td><td>spec-writer reads the brief its epic links</td></tr>
@@ -287,7 +293,7 @@ factory/
 <tr><td><code>CLAUDE.md</code></td><td>human; orchestrator applies approved proposals / <code>init</code> appends block, and on upgrade replaces only its <code>## Software factory</code> section</td><td>agents never</td></tr>
 <tr><td><code>inbox.md</code> <code>inbox.json</code> <code>actions-applied.json</code></td><td>orchestrator</td><td>dashboard reads only</td></tr>
 <tr><td><code>actions.jsonl</code></td><td><code>server.py</code> (append-only)</td><td>orchestrator reads only; nothing rewrites it</td></tr>
-<tr><td><code>verify.md</code> <code>branch.diff</code></td><td>orchestrator (it exports the job branch with <code>git archive</code>, runs the tests there and saves the diff; it never switches branches to verify)</td><td>approver reads only</td></tr>
+<tr><td><code>verify.md</code> <code>branch.diff</code></td><td><code>factoryctl verify</code>, run by the orchestrator (it exports the job branch with <code>git archive</code>, or trial-merges in a temporary worktree, runs the commands there and saves the diff; it never switches branches)</td><td>reviewers, triager and approver read only</td></tr>
 <tr><td><code>spec.md</code> <code>build.md</code> <code>decision.md</code> <code>round-N/*</code></td><td>the one agent named for it</td><td>orchestrator appends the human rework note to <code>build.md</code>, and <code>## Orchestrator amendments</code> / <code>## Human amendments</code> to <code>spec.md</code></td></tr>
 <tr><td>product code and tests</td><td>builder, on <code>factory/&lt;id&gt;</code> only</td><td>no one else</td></tr>
 <tr><td>default branch</td><td>orchestrator (merge, state commit)</td><td>agents never</td></tr>
@@ -302,34 +308,39 @@ factory/
 </table>
 <h3 id="board">7.4 board.json schema</h3>
 <pre><code>{
-  "version": 1,
-  "plugin_version": "1.8.0",                   // set only by init (new project or upgrade); missing = before 1.8.0
+  "version": 2,                                // 1 before 2.0.0; init migrates it (factoryctl migrate)
+  "plugin_version": "2.0.0",                   // set only by init (new project or upgrade); missing = before 1.8.0
   "default_branch": "main|master|…",          // set by init or orchestrator preflight
   "plan":     {"mode": "product|feature", "feature": "&lt;slug&gt;|null", "pass": 1|2|3,
                "status": "running|awaiting-questions|awaiting-approval|approved|done"},  // optional; no mode = product (pre-1.7.0)
   "features": [{"slug":"team-invites","title":"…","planned":"2026-10-17","epics":["E9"],"items":["B31","B32"]}],  // optional; finished feature plans
   "document": "running|awaiting-approval|done",                                                          // optional
-  "run": {"status":"running|stopped|done","started":"…","max_jobs":null,"budget_minutes":null,
+  "run": {"status":"running|stopped|done","started":"…","max_jobs":null,"budget_minutes":null,"until":null,
           "jobs_done":0,"consecutive_failures":0,"stop_reason":null,"current":"&lt;id&gt;|null"},        // null until /factory run
   "jobs": [{
     "id": "001-health-endpoint", "title": "…",
     "track": "quick|full|null",               // null until the spec exists
     "extra_reviewers": [], "skip_reviewers": [], // from the spec: ["ux"], ["ui"]
-    "stage": "spec|build|review|triage|decision|needs-human|done",
-    "round": 1,
+    "stage": "spec|build|verify|review|triage|decision|needs-human|done|cancelled",
+    "round": 1,                                // the review transition adds 1
     "reviews": {"1": {"security":"PASS|CHANGES|pending|N/A","ux":…,"ui":…,"code":…,
                       "triage":"CLEAN|PATCH|DECISION|pending"}},
     "decision": "APPROVE|APPROVE (human)|ESCALATE|null",
     "branch": "factory/001-health-endpoint",
     "epic": "E1",                              // optional, from backlog tag
     "item": "B3",                              // backlog id; set when the job starts from the backlog
-    "parked_reason": "string|null",            // set while parked for a human in a run
+    "parked_reason": "string|null",            // "&lt;REASON&gt;: …" while in needs-human; set and cleared by transitions
     "assumptions": 0,                          // count of A&lt;n&gt; lines in the spec
-    "updated": "ISO-8601"
+    "workspace": {"kind": "legacy-checkout|worktree", "path": null, "base_commit": null, "created_at": null},
+    "execution": {"attempt": 1, "started_at": "…", "completed_at": null, "last_error": null},
+    "evidence":  {"head_commit": "…", "verified_commit": "…|null", "verified_at": "…",
+                  "verified_default": "…", "tested": "branch|merge result"},   // written only by factoryctl verify
+    "updated": "UTC ISO-8601 (+00:00)"
   }],
-  "retro": {"done_since": 0, "last": null}    // retro runs when done_since reaches 5
+  "retro": {"done_since": 0, "last": null}    // the done transition adds 1; retro runs at 5
 }</code></pre>
-<p>Written as a whole-file read-modify-write at every transition. The dashboard relies on <code>stage</code>, <code>track</code>, <code>decision</code>, <code>reviews</code>, <code>id</code>, <code>title</code>; additional fields are ignored. The run banner and backlog queue additionally use <code>run</code>, <code>item</code>, <code>parked_reason</code> and <code>assumptions</code>.</p>
+<p>Written only by <code>factoryctl.py</code>: it validates the whole board (and <code>config.json</code>) first, writes atomically (temp file and rename), keeps unknown fields, and refuses a malformed, older or newer board without touching it. Every timestamp is UTC with <code>+00:00</code>. <code>verified_commit</code> is set only by a passing verification; the <code>review</code>, <code>decision</code> and <code>done</code> transitions refuse when it is not the branch's current head (and <code>review</code>/<code>decision</code> also when the default branch has gained code since <code>verified_default</code>). The dashboard relies on <code>stage</code>, <code>track</code>, <code>decision</code>, <code>reviews</code>, <code>id</code>, <code>title</code>; additional fields are ignored. The run banner and backlog queue additionally use <code>run</code>, <code>item</code>, <code>parked_reason</code> and <code>assumptions</code>.</p>
+<p><b>Transitions</b> (enforced by <code>factoryctl transition</code>; anything else is refused and nothing is written): spec → build, needs-human · build → verify, needs-human · verify → review, build, decision, needs-human · review → triage, build, needs-human · triage → build, verify, decision, needs-human · decision → done, verify, build, needs-human · needs-human → spec, build, verify, decision, done · any of these → cancelled · <code>done</code> and <code>cancelled</code> are final. A <code>needs-human</code> reason must start with an inbox reason code. A transition given a dashboard <code>--action-id</code> that is already in <code>events.jsonl</code> is a no-op.</p>
 <h3 id="context">7.5 What each agent reads first</h3>
 <table>
 <tr><th>Agent</th><th>CLAUDE.md</th><th>learnings.md</th><th>docs/*</th><th>job files</th><th>other</th></tr>
@@ -364,7 +375,7 @@ factory/
 <h3 id="f-init">8.1 init</h3>
 <ol>
 <li>Git: if not a repo, <code>git init -b main</code>. Else detect default branch (<code>origin/HEAD</code>, else current). Never rename.</li>
-<li>Create <code>factory/</code>, <code>factory/jobs/.gitkeep</code>; copy the six templates if absent; set <code>default_branch</code> in <code>board.json</code>.</li>
+<li>Create <code>factory/</code>, <code>factory/jobs/.gitkeep</code>; copy the nine templates if absent; record <code>default_branch</code> and <code>plugin_version</code> with <code>factoryctl set</code>.</li>
 <li>Append project-context block to <code>CLAUDE.md</code> unless marker present.</li>
 <li>Ensure <code>.gitignore</code> has <code>.DS_Store</code>.</li>
 <li>If code exists: find test/lint/build commands, run tests once, propose <code>CLAUDE.md</code> lines, apply only on consent.</li>
@@ -407,17 +418,17 @@ factory/
   <text class="t2" x="735" y="82">APPROVE → merge</text>
   <path d="M552 236 C700 250, 840 200, 845 138" class="line dash" marker-end="url(#ar)"/><text class="t2" x="700" y="246">/factory approve</text>
 </svg>
-<figcaption>Job stages as stored in <code>board.json</code>. <code>needs-human</code> is entered from the readiness gate, from triage (DECISION) or from the approver (ESCALATE); only a human command moves it on.</figcaption>
+<figcaption>Job stages as stored in <code>board.json</code>. Since 1.9.0 a <code>verify</code> stage sits between build and review (a failing verify returns to build for one fix), and 2.0.0 adds the final <code>cancelled</code> stage; see the transition table in §7.4. <code>needs-human</code> is entered from the readiness gate, from verify (VERIFY FAIL), from triage (DECISION) or from the approver (ESCALATE); only a human command moves it on.</figcaption>
 </figure>
 <ol>
 <li><b>Preflight</b>: resolve <code>default_branch</code> (detect and store if missing); require default branch checked out and no uncommitted changes <i>outside</i> <code>factory/</code>, <code>docs/</code>, <code>CLAUDE.md</code>; require a test command (scaffold and <code>(enabler: test-harness)</code> jobs excepted).</li>
-<li><b>Spec</b>: allocate id <code>NNN-slug</code>; spawn <code>spec-writer</code> → <code>spec.md</code> (declares track).</li>
+<li><b>Spec</b>: allocate id <code>NNN-slug</code> (<code>factoryctl job-new</code>); spawn <code>spec-writer</code> → <code>spec.md</code> (declares track; recorded with <code>factoryctl set</code>). Every stage change below is a <code>factoryctl transition</code>.</li>
 <li><b>Readiness gate</b>: spec needs Intent, numbered ACs and a test command in Baseline. Open decisions → <code>needs-human</code> → run <code>grill</code> (log <code>jobs/&lt;id&gt;/grill-log.md</code>, answers <code>answers.md</code>) → re-run spec-writer once → still open ⇒ stay <code>needs-human</code>. Other gaps → re-run spec-writer once, else <code>needs-human</code>.</li>
 <li><b>Build</b>: spawn <code>builder</code> named <code>builder-&lt;id&gt;</code>; branch <code>factory/&lt;id&gt;</code> from default branch; tests per AC; commits only product code; writes <code>build.md</code>.</li>
-<li><b>Verify</b> (after every builder run): the orchestrator exports the branch with <code>git archive</code> into the scratchpad (never switching branches; if the default branch has gained code since the branch was cut, it verifies the merge result in a detached worktree instead), runs the test command (and lint/build if listed in <code>CLAUDE.md</code>) with a throwaway <code>HOME</code>, and writes <code>verify.md</code> (<code>VERIFY: PASS|FAIL</code>, the <code>Candidate:</code> and <code>Default:</code> commits, command output tail, diff stat) and <code>branch.diff</code>. <code>FAIL</code> → no reviewers; the builder gets one verify fix (not a review round), then a second <code>FAIL</code> or a merge conflict → <code>needs-human</code> (<code>VERIFY FAIL</code>). Reviewers, triager and approver read this result instead of re-running the suite.</li>
-<li><b>Review round N</b>: <code>full</code> = 4 reviewers in one parallel message; <code>quick</code> = security + code (ux/ui recorded <code>N/A</code>). The spec's <code>Extra reviewers:</code> adds ux/ui to quick; <code>Skip reviewers:</code> drops ux/ui from full (never security or code). Orchestrator waits for all expected files, records each VERDICT on the board as files land.</li>
+<li><b>Verify</b> (stage <code>verify</code>, after every builder run): <code>factoryctl verify &lt;id&gt; --test … [--lint …] [--build …] [--setup …]</code> exports the exact branch head with <code>git archive</code> (or, if the default branch has gained code since the branch was cut, trial-merges in a temporary detached worktree), runs the commands with a throwaway <code>HOME</code>, writes <code>verify.md</code> (<code>VERIFY: PASS|FAIL</code>, <code>Candidate:</code>, <code>Default:</code>, <code>Tested:</code>, output tails, diff stat) and <code>branch.diff</code>, and records <code>evidence</code>. Exit 1 → no reviewers; the builder gets one verify fix (not a review round), a second FAIL → <code>needs-human</code>. Exit 4 (conflict) → <code>needs-human</code>. Exit 3 (could not run) → agent failure, never a false FAIL. Reviewers, triager and approver read the result instead of re-running the suite.</li>
+<li><b>Review round N</b>: <code>full</code> = 4 reviewers in one parallel message; <code>quick</code> = security + code (ux/ui recorded <code>N/A</code>). The spec's <code>Extra reviewers:</code> adds ux/ui to quick; <code>Skip reviewers:</code> drops ux/ui from full (never security or code). The <code>review</code> transition starts the round, creates <code>round-N/</code>, records <code>N/A</code> and prints whom to spawn; after the reviewers return, <code>factoryctl round</code> records the verdicts and says what is next (re-run a reviewer, skip triage, or spawn the triager).</li>
 <li><b>Triage</b>: if every reviewer wrote <code>VERDICT: PASS</code> and <code>FINDINGS: 0</code>, the orchestrator writes <code>TRIAGE: CLEAN</code> itself (triager not run). Otherwise spawn <code>triager</code>. <code>CLEAN</code> → decision. <code>DECISION</code> → <code>needs-human</code>. <code>PATCH</code> → if N&lt;2, commit factory state, then resume <code>builder-&lt;id&gt;</code> or spawn a fresh builder pointed at the triage file (fix only <code>patch</code> items), verify, and start round N+1; at N=2 go to decision.</li>
-<li><b>Fresh evidence</b>: before the approver, the orchestrator reuses <code>verify.md</code> if it is <code>PASS</code>, its <code>Candidate:</code> commit is still the branch head, and the default branch gained no code (outside <code>factory/</code>, <code>docs/</code>, <code>CLAUDE.md</code>) since its <code>Default:</code> commit; its own state commits do not count. Otherwise it verifies again, and a <code>FAIL</code> then → <code>needs-human</code>. The approver needs no shell.</li>
+<li><b>Fresh evidence</b>: the <code>decision</code> transition refuses unless the verified commit is still the branch head and the default branch gained no code since (state commits under <code>factory/</code>, <code>docs/</code>, <code>CLAUDE.md</code> do not count); then the job goes back through <code>verify</code>, and a <code>FAIL</code> there → <code>needs-human</code>. The approver needs no shell.</li>
 <li><b>Decision</b>: spawn <code>approver</code>. <code>APPROVE</code> → merge <code>factory/&lt;id&gt;</code> into default branch with <code>--no-ff</code> (or push branch and ask for a PR if protected / PR-required), stage <code>done</code>, commit factory state on default branch (<code>factory: record job &lt;id&gt;</code>), re-check parked jobs for conflicts (<code>git merge-tree</code>), offer retro at 5 done jobs. In headless mode the sub-orchestrator stops at APPROVE and the outer loop merges. A merge refused by a permission policy parks the job <code>MERGE BLOCKED</code>. <code>ESCALATE</code> → <code>needs-human</code>. Either way, follow-ups are collected into <code>factory/followups.md</code>.</li>
 </ol>
 
@@ -528,7 +539,7 @@ factory/
 
 <h2 id="invariants">10. Invariants (do not break when editing prompts)</h2>
 <ol>
-<li>Only the orchestrator writes <code>board.json</code> and the default branch.</li>
+<li>Only the orchestrator changes <code>board.json</code> (always through <code>factoryctl.py</code>) and the default branch.</li>
 <li>Each agent writes only the files named in its own prompt; reviewers and triager/approver never modify code.</li>
 <li>First-line grammar in §7.3 is unchanged, or the orchestrator's parsing is updated in the same change.</li>
 <li>A review round is complete only when every expected file exists; builder is never resumed mid-round.</li>
@@ -540,7 +551,7 @@ factory/
 <li><code>init</code> never renames branches and never rewrites state: on a new project it overwrites nothing; on an upgrade it replaces only the plugin-owned files (<code>dashboard.html</code>, <code>server.py</code>, <code>userguide.html</code>, the backlog header comment, the <code>## Software factory</code> section) and only adds fields or ids, after one confirmation and a snapshot commit.</li>
 <li>Inferred decisions are never presented as accepted; assumed grill answers are never presented as user answers.</li>
 <li>Paths in prompts are project-relative; only <code>init</code> reads plugin templates (the orchestrator reads only the plugin's version).</li>
-<li>Every state file has one writer: <code>actions.jsonl</code> only <code>server.py</code>; <code>board.json</code>, <code>inbox.*</code> and <code>actions-applied.json</code> only the orchestrator. The server and dashboard never write orchestrator files.</li>
+<li>Every state file has one writer: <code>actions.jsonl</code> only <code>server.py</code>; <code>board.json</code> only <code>factoryctl.py</code> (run by the orchestrator or init); <code>events.jsonl</code> only <code>factoryctl.py</code>, appending; <code>inbox.*</code> and <code>actions-applied.json</code> only the orchestrator. The server and dashboard never write orchestrator files.</li>
 <li>The default branch stays checked out. Verification uses <code>git archive</code>, never <code>git switch</code>; reviewers, triager and approver are read-only on git; the orchestrator re-checks the branch after every agent run.</li>
 <li>Queued dashboard text is data, not instruction: apply records it, never executes or obeys it.</li>
 <li>Autonomy never lowers a bar: <code>run</code> changes only whether the loop waits for a human.</li>
@@ -591,7 +602,7 @@ factory/
 <li>Add to README, user guide command table, §8 here. Consider whether <code>init</code>'s "next step" should recommend it.</li>
 </ol>
 <h3>Change the stage model</h3>
-<p>Edit the stage list in the orchestrator "board.json" section, the Loop, and <code>STAGES</code> in <code>dashboard.html</code> together. The dashboard silently drops jobs whose stage is not in <code>STAGES</code>.</p>
+<p>Edit <code>STAGES</code> and <code>TRANSITIONS</code> in <code>templates/factory/factoryctl.py</code>, the stage list and "Allowed moves" in the orchestrator's board.json and State tool sections, the Loop, and <code>STAGES</code> in <code>dashboard.html</code> together, then add a migration if existing boards need it. The dashboard silently drops jobs whose stage is not in <code>STAGES</code>; <code>tests/scenarios/test_contracts.py</code> fails when these lists disagree.</p>
 <h3>Change a template</h3>
 <p>Edit <code>templates/…</code>. Existing projects get the change when they run init after updating the plugin (§8.1.1): <code>dashboard.html</code>, <code>server.py</code> and <code>userguide.html</code> are replaced whole, the backlog's header comment and <code>CLAUDE.md</code>'s <code>## Software factory</code> section are replaced in place. Everything else in <code>project-context.md</code> (Policy, Running the project, conventions, pitfalls) belongs to the user after the first init and is never updated, so put nothing there that later versions will need to change. A new required top-level <code>board.json</code> field also needs a row in init's U3 migration list.</p>
 <h3>Release</h3>
@@ -626,7 +637,7 @@ claude -p "/software-factory:brainstorm …" --plugin-dir $PL                   
 <h2 id="limits">14. Known limitations and risks</h2>
 <table>
 <tr><th>#</th><th>Limitation</th><th>Impact</th><th>Possible fix</th></tr>
-<tr><td>L1</td><td>Write-scope rules are prompt conventions, not enforced. Agents hold Write/Bash broadly.</td><td>A misbehaving agent could edit another file or board.json.</td><td>Hooks (PreToolUse) that block writes outside the agent's file; or a validation step after each agent that diffs <code>git status</code>.</td></tr>
+<tr><td>L1 <span class="pill">partly resolved in 2.0.0</span></td><td>Write-scope rules are prompt conventions, not enforced. Agents hold Write/Bash broadly. Since 2.0.0 the orchestrator's own board writes go through <code>factoryctl.py</code>, which refuses invalid states; agents' file scopes are still unenforced (planned for 2.1.0).</td><td>A misbehaving agent could edit another file or board.json.</td><td>Hooks (PreToolUse) that block writes outside the agent's file; or a validation step after each agent that diffs <code>git status</code>.</td></tr>
 <tr><td>L2</td><td>Orchestrator is a long prompt executed by the model; state machine is not code.</td><td>Possible drift (skipped steps, wrong stage). Mitigated by first-line grammar and board updates.</td><td>Move parsing/transition checks into a small script; add a <code>/factory doctor</code> that validates board vs files.</td></tr>
 <tr><td>L3</td><td>One job at a time. Parallelism exists only inside a review round.</td><td>Throughput.</td><td>Use git worktrees per job; board already keyed by id.</td></tr>
 <tr><td>L4</td><td>Dashboard does not render <code>document</code> state or the <code>features</code> history or severity counts, and ignores jobs whose stage is unknown. (Planning progress and epics are shown since 1.6.0.)</td><td>Document progress invisible on the board.</td><td>Add a document banner.</td></tr>
@@ -690,6 +701,7 @@ claude -p "/software-factory:brainstorm …" --plugin-dir $PL                   
 <tr><td>1.8.0</td><td>Upgrade path: re-running <code>/software-factory:init</code> on an initialized project upgrades it (version check, nothing-in-flight confirmation, one summary and one confirmation, snapshot commit, refreshed <code>dashboard.html</code>/<code>server.py</code>/<code>userguide.html</code>, backlog header and <code>CLAUDE.md</code> <code>## Software factory</code> section, missing board fields, backlog ids when none exist, an offer to propose dependencies, report-only consistency checks, commit offer); <code>plugin_version</code> in <code>board.json</code>; every factory command warns in one line when project and plugin versions differ; init and the version check read the installed plugin path, never the first <code>find</code> result; <code>rework</code> recovers a job left mid-stage by an interrupted session (a job in <code>spec</code> re-runs the spec-writer). Resolves L5.</td></tr>
 <tr><td>1.9.0</td><td>Fewer agent runs per job: the orchestrator verifies right after every build (step 3a), so a red build goes back to the builder for one verify fix before any reviewer runs, and reviewers, triager and approver read <code>verify.md</code> instead of re-running the suite (reviewer-code and triager run only targeted tests; the approver none). <code>verify.md</code> records the <code>Candidate:</code> and <code>Default:</code> commits, and before the approver it is reused unless the branch or the default branch's code has moved. Reviews gain a second line <code>FINDINGS: &lt;n&gt;</code>; when every reviewer passes with 0 findings the orchestrator writes <code>TRIAGE: CLEAN</code> itself and the triager does not run.</td></tr>
 <tr><td>1.10.0</td><td>Regression suite, no change to the factory's behaviour: <code>tests/run.py</code> with deterministic scenarios for <code>server.py</code>, the templates, the fixture projects and the cross-file contracts (stages, agents, output grammar, action types, inbox reasons, documented version, excluded integrations); CI on every pull request; opt-in <code>--live</code> scenarios that drive <code>claude -p</code> through init, an upgrade and two jobs covering the 1.9.0 verify and triage paths (§13).</td></tr>
+<tr><td>2.0.0</td><td>State tool: <code>factory/factoryctl.py</code> (stdlib, copied and refreshed by init) is the only writer of <code>board.json</code>. Board schema version 2 (<code>verify</code> and <code>cancelled</code> stages; per-job <code>workspace</code>, <code>execution</code>, <code>evidence</code>); validated transitions with gates (verification bound to the branch head and the default branch; <code>done</code> needs an approval, the verified head and a merge); append-only <code>events.jsonl</code> with action-id replay protection; <code>factory/config.json</code>; <code>verify</code>, <code>round</code> (clean-round triage skip), <code>ready</code> (transitive blocking), <code>event</code>, <code>migrate</code> and the read-only <code>check</code>, <code>status</code>, <code>doctor</code> (<code>/factory doctor</code>). init migrates v1 boards in place, never changing a stage or decision. The orchestrator skill calls the tool for every state change and stops on a project that has not been upgraded.</td></tr>
 </table>
 
 <h2 id="glossary">17. Glossary</h2>

@@ -112,7 +112,7 @@ code{font:12px ui-monospace,monospace}
 </div>
 <div id="viewer"><div class="box"><div id="tabs"></div><div id="content"></div><div class="vbar"><span class="fname" id="fname"></span><span><button id="rawbtn" onclick="toggleRaw()">Show source</button><button onclick="viewer.style.display='none'">Close</button></span></div></div></div>
 <script>
-const STAGES=["spec","build","review","triage","decision","needs-human","done"];
+const STAGES=["spec","build","verify","review","triage","decision","needs-human","done","cancelled"];
 const REV=["security","ux","ui","code"];
 const FILES=(j)=>["spec.md","build.md","verify.md","branch.diff","decision.md",...Object.keys(j.reviews||{}).flatMap(n=>[...REV.map(r=>`round-${n}/${r}.md`),`round-${n}/triage.md`])];
 const $=id=>document.getElementById(id);

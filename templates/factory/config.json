@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "workspace": {
+    "mode": "worktree",
+    "root": "auto",
+    "retain_completed": false
+  },
+  "run": {
+    "parallel_jobs": 1,
+    "max_consecutive_failures": 2
+  },
+  "verification": {
+    "run_test": true,
+    "run_lint": true,
+    "run_build": true
+  },
+  "audit": {
+    "events": true
+  }
+}

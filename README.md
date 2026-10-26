@@ -27,13 +27,13 @@ In any project:
 /software-factory:factory approve <id> | rework <id> <note>
 /software-factory:factory signoff <id> [note]               # sign off a job's [sign-off] criteria early, while it is still being built
 ```
-`init` creates `factory/` (board, backlog, learnings, dashboard, `server.py`, `userguide.html`), appends a project-context block to `CLAUDE.md`, and asks whether the factory may merge approved jobs (on a yes it adds `Bash(git merge --no-ff factory/*)` to `.claude/settings.local.json`). It is safe to re-run. On a project that is already initialized it runs as an upgrade: after one confirmation it refreshes the plugin-owned files (`dashboard.html`, `server.py`, `userguide.html`, the backlog header and the `## Software factory` section of `CLAUDE.md`), adds missing board fields, numbers an unnumbered backlog, and stamps `plugin_version` in `board.json`; your state (jobs, backlog items, docs, learnings) is never rewritten. Every factory command warns in one line when the project and the plugin versions differ. See [`docs/upgradepath.html`](docs/upgradepath.html).
+`init` creates `factory/` (board, backlog, learnings, `config.json`, `events.jsonl`, the state tool `factoryctl.py`, dashboard, `server.py`, `userguide.html`), appends a project-context block to `CLAUDE.md`, and asks whether the factory may merge approved jobs (on a yes it adds `Bash(git merge --no-ff factory/*)` to `.claude/settings.local.json`). It is safe to re-run. On a project that is already initialized it runs as an upgrade: after one confirmation it refreshes the plugin-owned files (`factoryctl.py`, `dashboard.html`, `server.py`, `userguide.html`, the backlog header and the `## Software factory` section of `CLAUDE.md`), migrates the board to the current version (jobs keep their stage and decision), numbers an unnumbered backlog, and stamps `plugin_version` in `board.json`; your state (jobs, backlog items, docs, learnings) is never rewritten. Every factory command warns in one line when the project and the plugin versions differ. See [`docs/upgradepath.html`](docs/upgradepath.html).
 
 ## The skills
 | Skill | Use it when |
 |---|---|
 | `init` | Once per project: sets up `factory/` and `CLAUDE.md`, offers the merge permission. Again after each plugin update: upgrades the project |
-| `factory` | Everything else: `plan` (a product, or one capability on existing code), `document`, `<feature>`, `next`, `run`, `apply`, `approve`, `rework`, `signoff`, `status`, `retro` |
+| `factory` | Everything else: `plan` (a product, or one capability on existing code), `document`, `<feature>`, `next`, `run`, `apply`, `approve`, `rework`, `signoff`, `status`, `doctor`, `retro` |
 | `brainstorm` | The idea is vague. It widens: a coach draws out many options from you, one prompt at a time, then you narrow them with MoSCoW into `docs/intent.md` |
 | `grill` | You have a direction. It narrows: numbered rounds of questions (`[recommend]` ones carry a suggested answer, `[open]` product calls do not) until nothing is assumed; decisions go to `docs/grill-log.md` and `docs/intent.md` |
 
@@ -47,7 +47,7 @@ When the idea is vague, run brainstorm and then grill. `factory plan` runs both 
 | `skills/grill/SKILL.md` | "Grill me" interviewer, adapted from mattpocock/skills (MIT, see `NOTICE`); keeps a resumable decision log, ends with an intent doc, supports headless runs |
 | `skills/brainstorm/SKILL.md` | Facilitator-style brainstorming and MoSCoW narrowing, condensed from BMAD's brainstorming |
 | `agents/` | planner, spec-writer, builder, reviewer-security/ux/ui/code, triager, approver, retro |
-| `templates/` | Files copied into the project by `init` |
+| `templates/` | Files copied into the project by `init`, including `factory/factoryctl.py`, the state tool every board change goes through |
 | `docs/userguide.html` | User guide: the skills, walkthroughs, commands, files, troubleshooting |
 | `docs/factoryarchitecture.html` | Maintainer reference: architecture, file contracts, flows, invariants |
 | `docs/upgradepath.html` | Upgrading a part-built project from an older plugin version (update, restart, `init`) and resuming |

@@ -8,14 +8,22 @@ from helpers import FACTORY_TEMPLATES, FIXTURES, TEMPLATES, read_json
 
 def test_template_board(fx):
     board = read_json(FACTORY_TEMPLATES / "board.json")
-    assert board == {"version": 1, "plugin_version": None, "default_branch": None, "jobs": [],
+    assert board == {"version": 2, "plugin_version": None, "default_branch": None, "jobs": [],
                      "retro": {"done_since": 0, "last": None}, "run": None}
+
+
+def test_template_config_is_the_default(fx):
+    from helpers.server import load_module
+    fc = load_module(FACTORY_TEMPLATES, "factoryctl.py")
+    assert read_json(FACTORY_TEMPLATES / "config.json") == fc.DEFAULT_CONFIG
+    assert (FACTORY_TEMPLATES / "events.jsonl").read_text() == ""
 
 
 def test_init_copies_exactly_these_files(fx):
     """init step 2 and upgrade U3 name these files; a new template must be added to both."""
-    shipped = sorted(p.name for p in FACTORY_TEMPLATES.iterdir())
-    assert shipped == ["backlog.md", "board.json", "dashboard.html", "learnings.md", "server.py", "userguide.html"]
+    shipped = sorted(p.name for p in FACTORY_TEMPLATES.iterdir() if p.is_file())
+    assert shipped == ["backlog.md", "board.json", "config.json", "dashboard.html", "events.jsonl", "factoryctl.py",
+                       "learnings.md", "server.py", "userguide.html"]
     init = (TEMPLATES.parent / "skills" / "init" / "SKILL.md").read_text()
     for name in shipped:
         assert f"`{name}`" in init, name
@@ -33,8 +41,9 @@ def test_project_context_block(fx):
     assert "## Software factory" in text and "Test command:" in text
 
 
-def test_server_compiles_on_this_python(fx):
-    py_compile.compile(str(FACTORY_TEMPLATES / "server.py"), cfile=str(fx.root / "server.pyc"), doraise=True)
+def test_shipped_code_compiles_on_this_python(fx):
+    for name in ("server.py", "factoryctl.py"):
+        py_compile.compile(str(FACTORY_TEMPLATES / name), cfile=str(fx.root / f"{name}c"), doraise=True)
 
 
 def test_upgrade_fixture_boards(fx):

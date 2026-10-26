@@ -4,6 +4,7 @@ import re
 import subprocess
 
 from helpers import FACTORY_TEMPLATES, REPO, plugin_version
+from helpers.server import load_module
 
 SKILL = REPO / "skills" / "factory" / "SKILL.md"
 AGENTS = REPO / "agents"
@@ -26,10 +27,41 @@ def _skill_stages():
     return re.findall(r"`([a-z-]+)`", m.group(1))
 
 
-def test_stage_list_matches_dashboard(fx):
+def _factoryctl():
+    return load_module(FACTORY_TEMPLATES, "factoryctl.py")
+
+
+def test_stage_list_matches_dashboard_and_factoryctl(fx):
     m = re.search(r"const STAGES=(\[.*?\]);", _text(FACTORY_TEMPLATES / "dashboard.html"))
     assert m, "dashboard.html has no STAGES"
     assert json.loads(m.group(1)) == _skill_stages(), "a stage missing from the dashboard drops its jobs off the board"
+    assert _factoryctl().STAGES == _skill_stages()
+
+
+def test_documented_moves_match_factoryctl(fx):
+    """SKILL.md's list of allowed moves is what factoryctl enforces."""
+    m = re.search(r"Allowed moves: (.+?); any of these → cancelled; `done` and `cancelled` are final\.", _text(SKILL))
+    assert m, "SKILL.md has no Allowed moves list"
+    documented = {}
+    for part in m.group(1).split("; "):
+        src, dsts = part.split(" → ")
+        documented[src] = {d.strip() for d in dsts.split(",")} | {"cancelled"}
+    enforced = {k: v for k, v in _factoryctl().TRANSITIONS.items() if v}
+    assert documented == enforced, (documented, enforced)
+
+
+def test_documented_settable_fields_match_factoryctl(fx):
+    fc = _factoryctl()
+    m = re.search(r"`jobs\.<id>\.<field>` for (.+?); top-level", _text(SKILL))
+    assert m
+    assert set(re.findall(r"`([a-z_]+)`", m.group(1))) == fc.SETTABLE_JOB
+
+
+def test_factoryctl_reasons_and_version(fx):
+    fc = _factoryctl()
+    js = re.search(r'"reason":"([A-Z |-]+)"', _text(SKILL))
+    assert set(fc.REASONS) == {r.strip() for r in js.group(1).split("|")}
+    assert fc.VERSION == plugin_version(), "bump VERSION in templates/factory/factoryctl.py with the plugin"
 
 
 def test_agents_have_valid_frontmatter(fx):
@@ -69,7 +101,8 @@ def test_reviewer_grammar(fx):
 def test_orchestrator_knows_the_grammar(fx):
     text = _text(SKILL)
     for needle in ("`VERDICT: PASS`", "`FINDINGS: 0`", "triager not run", "`TRIAGE: CLEAN`", "`VERIFY: PASS`",
-                   "`Candidate:`", "`Default:`"):
+                   "`Candidate: factory/<id> @ <sha>`", "`Default: <default_branch> @ <sha>`", "factoryctl round",
+                   "factoryctl.py verify"):
         assert needle in text, needle
 
 
