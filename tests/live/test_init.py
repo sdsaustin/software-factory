@@ -72,6 +72,8 @@ def test_newer_project_stops_without_writing(fx):
     fx.git(repo, "commit", "-q", "-m", "fixture: stamped by a newer plugin")
     before = tree_digest(repo, ["factory", "CLAUDE.md", ".gitignore"])
     with Live(fx, repo) as live:
-        live.claude("/software-factory:init")
+        reply = live.claude("/software-factory:init")
+    # Writing nothing is only a pass if init ran and refused for this reason, not if the skill never loaded.
+    assert "9.9.0" in reply, f"init did not name the newer stamp: {reply[:300]}"
     assert tree_digest(repo, ["factory", "CLAUDE.md", ".gitignore"]) == before
     assert not fx.git(repo, "status", "--porcelain")
