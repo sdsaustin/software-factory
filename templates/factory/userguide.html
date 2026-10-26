@@ -162,6 +162,7 @@ th{background:var(--code)}
   <span class="step">1 Spec</span><span class="arrow">→</span>
   <span class="step">2 Readiness gate</span><span class="arrow">→</span>
   <span class="step">3 Build</span><span class="arrow">→</span>
+  <span class="step">3a Verify</span><span class="arrow">→</span>
   <span class="step">4 Review (2–4)</span><span class="arrow">→</span>
   <span class="step">5 Triage</span><span class="arrow">→</span>
   <span class="step">6 Approve</span><span class="arrow">→</span>
@@ -172,9 +173,10 @@ th{background:var(--code)}
   <tr><td>1 Spec</td><td>spec-writer (Opus)</td><td>Drafts intent, non-goals, numbered acceptance criteria (AC), assumptions, open decisions, baseline test run. Picks the track.</td><td><code>spec.md</code></td></tr>
   <tr><td>2 Gate</td><td>orchestrator</td><td>Needs intent, ACs and a test command. Open decisions mean a human must answer first.</td><td>board update</td></tr>
   <tr><td>3 Build</td><td>builder (Opus)</td><td>Works on branch <code>factory/&lt;id&gt;</code>, writes tests per AC, commits, maps each AC to evidence.</td><td><code>build.md</code> + commits</td></tr>
+  <tr><td>3a Verify</td><td>orchestrator</td><td>Runs the tests once on a clean copy of the branch. A failure goes straight back to the builder for one fix, before any reviewer starts. Reviewers and the approver read this result instead of re-running the suite.</td><td><code>verify.md</code>, <code>branch.diff</code></td></tr>
   <tr><td>4 Review</td><td>security (Opus); ux, ui, code (Sonnet)</td><td>Run in parallel against the diff and the spec's intent. Round is complete only when every file exists.</td><td><code>round-N/*.md</code></td></tr>
-  <tr><td>5 Triage</td><td>triager (Sonnet)</td><td>Verifies each finding, sets severity, routes it (see below).</td><td><code>round-N/triage.md</code></td></tr>
-  <tr><td>6 Decide</td><td>orchestrator, then approver (Opus)</td><td>The orchestrator first re-runs the tests on a clean copy of the branch (<code>verify.md</code>, <code>branch.diff</code>). On <span class="pass">APPROVE</span> the orchestrator merges into the default branch; the approver itself never merges. <span class="chg">ESCALATE</span> marks <code>needs-human</code>.</td><td><code>decision.md</code></td></tr>
+  <tr><td>5 Triage</td><td>triager (Sonnet)</td><td>Verifies each finding, sets severity, routes it (see below). Skipped when every reviewer passes with no findings: the orchestrator then writes <code>TRIAGE: CLEAN</code> itself.</td><td><code>round-N/triage.md</code></td></tr>
+  <tr><td>6 Decide</td><td>orchestrator, then approver (Opus)</td><td>The orchestrator reuses <code>verify.md</code>, and re-runs the tests only if the branch or the default branch's code has changed since. On <span class="pass">APPROVE</span> the orchestrator merges into the default branch; the approver itself never merges. <span class="chg">ESCALATE</span> marks <code>needs-human</code>.</td><td><code>decision.md</code></td></tr>
 </table>
 
 <h3>Quick vs full track</h3>
@@ -230,12 +232,12 @@ AC1: GET /health returns 200 and JSON {"status":"ok"}
 AC2: Response needs no authentication
 ## Baseline      `npm test` - 42 passed
 ## Open decisions (none)</code></pre></li>
-  <li>The gate passes. The builder creates <code>factory/001-health-endpoint</code>, adds the route and two tests, commits, and writes <code>build.md</code> mapping AC1 and AC2 to test names.</li>
+  <li>The gate passes. The builder creates <code>factory/001-health-endpoint</code>, adds the route and two tests, commits, and writes <code>build.md</code> mapping AC1 and AC2 to test names. The orchestrator runs the tests on a clean copy of the branch and writes <code>verify.md</code> (<code>VERIFY: PASS</code>).</li>
   <li>Quick track, so two reviewers run in parallel:
 <pre><code>round-1/security.md  VERDICT: PASS
 round-1/code.md      VERDICT: CHANGES   (code.md:  src/health.ts:12 - returns 200 even when shutting down? ...)</code></pre></li>
   <li>The triager checks the code finding, finds it is outside the spec, and writes <code>TRIAGE: CLEAN</code> with that finding marked <code>dismiss: out of scope, see Non-goals</code>.</li>
-  <li>The orchestrator re-runs the tests on a clean copy of the branch and writes <code>verify.md</code> (<code>VERIFY: PASS</code>). The approver sees evidence for both ACs and writes <code>APPROVE</code>. The orchestrator merges with <code>git merge --no-ff</code> and the card moves to <b>done</b>.</li>
+  <li>The approver sees evidence for both ACs in <code>build.md</code> and <code>verify.md</code> and writes <code>APPROVE</code>. The orchestrator merges with <code>git merge --no-ff</code> and the card moves to <b>done</b>.</li>
 </ol>
 
 <h3>B. Needs a human</h3>
@@ -309,7 +311,7 @@ factory/
 <h3>Acting from the dashboard</h3>
 <p>Parked jobs appear under <b>Needs you</b> with their question and options; the recommended option is highlighted. Pick options (or <b>Use recommendations</b>), add a note if you want, and submit. Approve asks to confirm. The click is <b>queued</b> only. Then run:</p>
 <pre><code>&gt; /software-factory:factory apply</code></pre>
-<p>Apply re-validates each action against the current board, re-runs the tests before any merge, and carries out <b>approve</b>, <b>rework</b>, <b>sign off</b> or <b>resume</b>. Results appear under <b>Recent actions</b>. Without the token (or with <code>http.server</code>) the buttons copy the equivalent command instead. The server listens on 127.0.0.1 only and can queue just those four actions, each only for a job that is waiting on it.</p>
+<p>Apply re-validates each action against the current board, re-checks the test evidence before any merge (re-running the tests if the code has moved), and carries out <b>approve</b>, <b>rework</b>, <b>sign off</b> or <b>resume</b>. Results appear under <b>Recent actions</b>. Without the token (or with <code>http.server</code>) the buttons copy the equivalent command instead. The server listens on 127.0.0.1 only and can queue just those four actions, each only for a job that is waiting on it.</p>
 
 <h2 id="human">Your role</h2>
 <ul>

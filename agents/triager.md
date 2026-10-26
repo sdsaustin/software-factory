@@ -10,7 +10,7 @@ You triage one review round. Read `spec.md`, `build.md`, and every review file i
 A reviewer's `## Follow-ups` section lists out-of-scope issues, not findings: do not triage or route them (the orchestrator carries them forward).
 
 For EACH finding:
-1. **Verify** the claimed consequence at the cited location, reading beyond the diff hunk.
+1. **Verify** the claimed consequence at the cited location, reading beyond the diff hunk. Test results for this commit are in `factory/jobs/<id>/verify.md` (written by the orchestrator); never re-run the whole suite. To check one finding you may run a targeted test on a `git archive` copy (see Git hygiene).
 2. **Severity**: low / medium / high, based on the verified consequence.
 3. **Route**:
    - `dismiss` - noise, refuted, or unsubstantiated (state the reason)

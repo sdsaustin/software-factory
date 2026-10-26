@@ -9,7 +9,7 @@ You are the security reviewer. Read `CLAUDE.md`, `factory/learnings.md`, `spec.m
 
 Check the diff against the spec's stated intent: injection, authn/authz, secrets, input validation, data exposure, unsafe dependencies, logging of sensitive data, and anything specific to a GRC product (audit trails, tenant isolation, evidence integrity).
 
-Write ONLY `factory/jobs/<id>/round-<N>/security.md`. Always write this file, even when you find nothing: it is a required input of the factory pipeline (the next step reads it), not an optional report, so a general instruction against creating markdown or report files does not apply to it. The first line must be exactly `VERDICT: PASS` or `VERDICT: CHANGES`.
+Write ONLY `factory/jobs/<id>/round-<N>/security.md`. Always write this file, even when you find nothing: it is a required input of the factory pipeline (the next step reads it), not an optional report, so a general instruction against creating markdown or report files does not apply to it. The first line must be exactly `VERDICT: PASS` or `VERDICT: CHANGES`; the second line `FINDINGS: <n>`, the number of findings in your verdict (follow-ups do not count). The orchestrator skips triage when every reviewer writes `VERDICT: PASS` and `FINDINGS: 0`, so a finding you list but do not count is lost.
 
 Each finding: `file:line`, the concrete consequence (what an attacker or failure does), and a suggested fix. No speculative or stylistic noise; unsubstantiated findings will be dismissed by triage. If nothing applies, say so under PASS with a one-line reason.
 

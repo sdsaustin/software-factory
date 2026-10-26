@@ -58,6 +58,7 @@ ol>li,ul>li{margin:6px 0}
   <tr><td>1.7.1</td><td>Backlog lines capped at 20 words; the planner replaces its own lines when a feature pass re-runs on notes</td><td>Nothing</td></tr>
   <tr><td>1.7.2</td><td>Documentation only</td><td>Refresh <code>userguide.html</code></td></tr>
   <tr><td>1.8.0</td><td>Re-running <code>/software-factory:init</code> upgrades an initialized project; <code>plugin_version</code> in <code>board.json</code>; every factory command warns when the project and plugin versions differ; <code>rework</code> recovers a job left mid-stage</td><td>Run init once (this page). It does everything in the column above.</td></tr>
+  <tr><td>1.9.0</td><td>Tests run once, right after each build and before review; a clean review round (every reviewer PASS with <code>FINDINGS: 0</code>) skips the triager</td><td>Run init to refresh <code>userguide.html</code>. Jobs in flight need nothing: an older review without a <code>FINDINGS:</code> line just runs the triager, and an older <code>verify.md</code> without a <code>Candidate:</code> line is re-run before the approver.</td></tr>
 </table>
 
 <h2 id="plugin">1. Update the plugin</h2>
