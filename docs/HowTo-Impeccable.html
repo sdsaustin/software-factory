@@ -1,0 +1,209 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Using Impeccable with the Software Factory</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--fg:#1c2330;--mut:#5f6877;--bd:#dde1e8;--acc:#3b5bdb;--acc2:#e8edff;--pass:#1a7f4b;--chg:#c0392b;--warn:#b7791f;--code:#eef0f4;--c1:#e8edff;--c2:#e6f6ee;--c3:#fff4e0;--c4:#fdebea;--c5:#efe9fb}
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]){--bg:#12151b;--card:#1a1f28;--fg:#e6e9ef;--mut:#9aa3b2;--bd:#2a313d;--acc:#8aa0f7;--acc2:#222b4a;--pass:#4cc38a;--chg:#ef6b5e;--warn:#e0a84a;--code:#232a35;--c1:#222b4a;--c2:#17332a;--c3:#3a2e17;--c4:#3a1f1d;--c5:#2c2447}}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.6 system-ui,sans-serif}
+.layout{display:grid;grid-template-columns:240px minmax(0,1fr);gap:24px;max-width:1180px;margin:0 auto;padding:0 16px 64px}
+aside{position:sticky;top:0;align-self:start;max-height:100vh;overflow:auto;padding:24px 0;font-size:13px}
+aside a{display:block;color:var(--mut);text-decoration:none;padding:2px 0}
+aside a:hover{color:var(--acc)}
+aside .sub{padding-left:12px}
+main{min-width:0}
+header{padding:28px 0 4px}
+h1{font-size:28px;margin:0 0 4px}
+h2{font-size:21px;margin:44px 0 8px;padding-top:10px;border-top:1px solid var(--bd)}
+h3{font-size:16px;margin:24px 0 4px}
+.lead{color:var(--mut);margin:0}
+code{background:var(--code);padding:1px 5px;border-radius:4px;font-size:.88em}
+pre{background:var(--code);padding:12px;border-radius:8px;overflow-x:auto;font-size:12.5px;line-height:1.5}
+pre code{background:none;padding:0}
+table{border-collapse:collapse;width:100%;font-size:13px;display:block;overflow-x:auto}
+th,td{border:1px solid var(--bd);padding:5px 9px;text-align:left;vertical-align:top}
+th{background:var(--code);white-space:nowrap}
+.callout{border-left:4px solid var(--acc);background:var(--card);padding:8px 14px;border-radius:0 8px 8px 0;margin:12px 0}
+.callout.warn{border-color:var(--warn)}.callout.bad{border-color:var(--chg)}.callout.ok{border-color:var(--pass)}
+.flow{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:12px 0}
+.step{background:var(--card);border:1px solid var(--bd);border-radius:8px;padding:6px 10px;font-size:13px}
+.arrow{color:var(--mut)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:10px;padding:12px 14px}
+.card h3{margin-top:0}
+.card p:last-child{margin-bottom:0}
+ol.story>li{margin:10px 0}
+@media(max-width:860px){.layout{grid-template-columns:1fr}aside{position:static;max-height:none}.grid2{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="layout">
+<aside>
+  <b>Impeccable</b>
+  <a href="#fit">1 How the two fit</a>
+  <a href="#install">2 Install it in the product</a>
+  <a href="#record">3 Record the design</a>
+  <a class="sub" href="#claude">Point CLAUDE.md at it</a>
+  <a href="#commands">4 Which command, when</a>
+  <a href="#walks">5 Three walks</a>
+  <a class="sub" href="#new">A new product</a>
+  <a class="sub" href="#existing">Existing code</a>
+  <a class="sub" href="#rework">A screen needs a pass</a>
+  <a href="#detect">6 The detector</a>
+  <a href="#protect">7 Hold the factory to it</a>
+  <a href="#run">8 While a run is going</a>
+  <a href="#trouble">9 Troubleshooting</a>
+  <a href="#more">Related</a>
+</aside>
+<main>
+<header>
+  <h1>Using Impeccable with the Software Factory</h1>
+  <p class="lead">Impeccable is a design skill you install in the product repository. The factory still specs, builds, reviews and merges. You use Impeccable when a person needs to set the visual system, or to judge a screen, and you hand the factory the result as files and acceptance criteria. Command details live at <a href="https://impeccable.style">impeccable.style</a>. Factory usage lives in the <a href="userguide.html">user guide</a>.</p>
+</header>
+
+<div class="callout"><b>Impeccable is not a fifth factory skill.</b> The plugin ships <code>init</code>, <code>factory</code>, <code>brainstorm</code> and <code>grill</code>. Leave Impeccable in the product repo. The factory will not call <code>/impeccable</code> for you.</div>
+
+<h2 id="fit">1. How the two fit</h2>
+<div class="grid2">
+  <div class="card"><h3>The factory owns the loop</h3><p>Vision, architecture, a backlog, then each job: spec, build on <code>factory/&lt;id&gt;</code>, security / UX / UI / code review, triage, approval, merge. Agents read <code>CLAUDE.md</code>, <code>factory/learnings.md</code>, and <code>docs/vision.md</code>, <code>docs/architecture.md</code>, <code>docs/decisions.md</code> and <code>docs/epics.md</code> when those exist. The builder implements the acceptance criteria. The UI reviewer reads the diff. Neither one opens a browser or restyles a page on its own.</p></div>
+  <div class="card"><h3>Impeccable owns the craft session</h3><p>One skill, a shared vocabulary (<code>shape</code>, <code>polish</code>, <code>typeset</code>, <code>layout</code>, and the rest), two durable files (<code>PRODUCT.md</code>, <code>DESIGN.md</code>), and a detector you can run with no model and no API key. Its live commands need you looking at a page. That is a session you run, then you bring the decision back to the factory.</p></div>
+</div>
+<p>Use Impeccable in two places:</p>
+<ul>
+  <li><b>Before a job</b>, on the default branch, to decide who the screen is for and what it should look like. Commit that. The next spec and build read it.</li>
+  <li><b>After a job has built a screen</b>, as a <code>rework</code> note, when you have looked at the result and want one named pass (polish, typeset, layout) without new product behaviour.</li>
+</ul>
+<p>A <code>/factory run</code> stays headless. It will not sit in live mode, pick elements, or choose “bolder” versus “quieter” for you. Those change the product, and in this loop a change of taste is yours.</p>
+
+<h2 id="install">2. Install it in the product</h2>
+<p>Run this in the repository the factory builds, after <code>/software-factory:init</code>. Install into that project, with hooks off. Hooks that rewrite a file while a job is in flight fight the spec and can leave the tree dirty, which blocks the next factory command.</p>
+<pre><code>npx impeccable install --no-hooks</code></pre>
+<p>When the installer asks, choose this project (not every project on the machine) and the harness you will design in. The factory’s own commands run in Claude Code, so include Claude there. If you shape screens in Cursor and build with the factory in Claude Code, install for both harnesses in this same repo. They share one <code>PRODUCT.md</code> and one <code>DESIGN.md</code>.</p>
+<p>Reload the coding tool, then confirm the skill is there:</p>
+<pre><code>/impeccable</code></pre>
+<p>Update later with <code>npx impeccable update</code>. Impeccable is a separate project (<a href="https://github.com/pbakaus/impeccable">pbakaus/impeccable</a>, Apache-2.0). This plugin does not pin or vendor it.</p>
+<div class="callout warn"><b>Not in this plugin repo.</b> If you are developing <code>software-factory</code> itself, skip Impeccable here. Install it in the product you are factory-building.</div>
+
+<h2 id="record">3. Record the design, then commit it</h2>
+<p>Impeccable writes two files at the repository root. Commit both on the default branch before the next <code>/software-factory:factory next</code> or <code>run</code>. A job refuses to start when anything outside <code>factory/</code>, <code>docs/</code> and <code>CLAUDE.md</code> is uncommitted.</p>
+<table>
+  <tr><th>Command</th><th>When</th><th>File</th><th>What it holds</th></tr>
+  <tr><td><code>/impeccable init</code></td><td>Once, as soon as you can name the users</td><td><code>PRODUCT.md</code></td><td>Audience, purpose, constraints, voice. Facts about the product, separate from the palette.</td></tr>
+  <tr><td><code>/impeccable document</code></td><td>Once there is UI in the tree (after the scaffold, or on an existing app)</td><td><code>DESIGN.md</code></td><td>The visual system already in the code: type, color, radius, components.</td></tr>
+</table>
+<p><code>init</code> asks only for gaps it cannot see in the repo. Answer those yourself. A headless guess here becomes the system every later screen follows.</p>
+<p>Keep the files at the root, where Impeccable writes them. The factory treats <code>docs/</code> as its own memory (<code>vision.md</code>, <code>architecture.md</code>, <code>decisions.md</code>, <code>epics.md</code>). A builder may commit under <code>docs/</code> only when a spec lists the file on <code>Docs files:</code>. Root <code>PRODUCT.md</code> and <code>DESIGN.md</code> stay product files you own.</p>
+<p>When the visual system itself should change, do that in an Impeccable session on the default branch, commit it, and then let jobs follow the new file. A single screen that must depart from <code>DESIGN.md</code> says so in its spec, as an acceptance criterion, so the reviewers judge the departure on purpose.</p>
+
+<h3 id="claude">Point CLAUDE.md at the two files</h3>
+<p>Factory agents read <code>CLAUDE.md</code> on every job. They do not read <code>PRODUCT.md</code> or <code>DESIGN.md</code> unless you name them. Under <b>Non-default conventions</b> in the project-context block, add:</p>
+<pre><code>### Non-default conventions
+- PRODUCT.md is who the product is for and what job a screen does. DESIGN.md is the visual system (type, color, radius, components).
+- Match both. Do not introduce a second palette, type scale, radius or component style.
+- Change PRODUCT.md or DESIGN.md only when the spec says to.</code></pre>
+<p>That block is yours. Init and later upgrades leave it in place. They refresh only the <code>## Software factory</code> section.</p>
+
+<h2 id="commands">4. Which command, and when</h2>
+<p>Every command is <code>/impeccable &lt;command&gt; &lt;target&gt;</code>. The target is a route, a screen or a folder, in Impeccable’s own words (“the pricing page”, <code>src/app/settings</code>). Pin a command you use often with <code>/impeccable pin audit</code>, which adds a <code>/audit</code> shortcut.</p>
+<table>
+  <tr><th>Moment</th><th>Commands</th><th>How it comes back to the factory</th></tr>
+  <tr><td>Before any UI job</td><td><code>init</code>, <code>document</code>, <code>shape</code>, <code>extract</code></td><td>Commit <code>PRODUCT.md</code> and <code>DESIGN.md</code> on the default branch. Put the screen’s decisions in the feature request so the spec’s acceptance criteria name them.</td></tr>
+  <tr><td>You are looking at a built page and want one correction</td><td><code>polish</code>, <code>typeset</code>, <code>layout</code>, <code>distill</code>, <code>clarify</code>, <code>harden</code>, <code>onboard</code>, <code>adapt</code>, <code>optimize</code>, <code>audit</code></td><td>A <a href="#rework">rework note</a> that names the command, the screen, and “keep the acceptance criteria.” The builder does the edit on <code>factory/&lt;id&gt;</code>. Review runs again.</td></tr>
+  <tr><td>You are in a browser, steering pixels</td><td><code>live</code>, <code>generate</code>, <code>craft</code>, <code>bolder</code>, <code>quieter</code>, <code>colorize</code>, <code>animate</code>, <code>delight</code>, <code>overdrive</code></td><td>Finish the session yourself, on the default branch, before the job exists. Commit the result or write the decision into the spec. These need a person. A <code>run</code> will not drive them.</td></tr>
+  <tr><td>You want a second opinion on hierarchy or copy</td><td><code>critique</code></td><td>Read it. Fold anything you accept into grill answers or into the spec. The factory’s UX reviewer still checks flows, errors, empty states and accessibility against the acceptance criteria. Impeccable’s critique does not replace that file.</td></tr>
+</table>
+<div class="callout ok"><b>One pass, then review.</b> A human rework grants two more review rounds. Ask for one named command. A chain of <code>bolder</code>, then <code>delight</code>, then <code>overdrive</code> on the same job is a new design, and it belongs in a spec before anyone builds it.</div>
+
+<h2 id="walks">5. Three walks</h2>
+
+<h3 id="new">A new product with a UI</h3>
+<div class="flow">
+  <span class="step">factory init</span><span class="arrow">→</span>
+  <span class="step">factory plan</span><span class="arrow">→</span>
+  <span class="step">impeccable init</span><span class="arrow">→</span>
+  <span class="step">scaffold</span><span class="arrow">→</span>
+  <span class="step">impeccable document</span><span class="arrow">→</span>
+  <span class="step">UI jobs</span>
+</div>
+<ol class="story">
+  <li><b>Set up the factory and approve the plan.</b> <code>/software-factory:init</code>, then <code>/software-factory:factory plan &lt;vision&gt;</code>. In grill, settle who the user is and what each major surface is for: persuade, operate, read, or experience. Those answers belong in <code>docs/intent.md</code> and <code>docs/vision.md</code>. Impeccable will ask the same kind of question; answer it once, in the plan, and repeat the short form in <code>PRODUCT.md</code>.</li>
+  <li><b>Install Impeccable and write <code>PRODUCT.md</code>.</b> <code>npx impeccable install --no-hooks</code>, then <code>/impeccable init</code>. Commit <code>PRODUCT.md</code> and the <code>CLAUDE.md</code> lines from <a href="#claude">above</a> on the default branch.</li>
+  <li><b>Let the scaffold land.</b> <code>/software-factory:factory next</code> or <code>run</code> builds the skeleton. There is nothing to document visually before that.</li>
+  <li><b>Write <code>DESIGN.md</code> from the skeleton</b> with <code>/impeccable document</code>. If the skeleton has no real visual system yet, run <code>/impeccable shape</code> on the first screen you care about, with you in the loop, and commit the system it produces. Later jobs match that file.</li>
+  <li><b>Start each UI backlog item with the screen named.</b> “Settings page for a household admin, match DESIGN.md, empty state when there are no members.” A UI flow is a full-track job, so the UI and UX reviewers run. A small layout change can stay on the quick track and add the UI reviewer (<code>Extra reviewers: ui</code>). Say “include the UI reviewer” in the request when you want to be sure.</li>
+</ol>
+
+<h3 id="existing">A product that already has code</h3>
+<ol class="story">
+  <li><code>/software-factory:init</code>, then <code>/software-factory:factory document</code>. That records architecture and decisions. Approve it.</li>
+  <li><code>npx impeccable install --no-hooks</code>, then <code>/impeccable document</code>. Read <code>DESIGN.md</code>. Fix anything the extractor got wrong before you commit it. Add the <a href="#claude">CLAUDE.md lines</a>.</li>
+  <li>If <code>PRODUCT.md</code> does not exist, run <code>/impeccable init</code> and commit it too.</li>
+  <li><code>/software-factory:factory plan &lt;capability&gt;</code>. For a screen whose direction is still open, run <code>/impeccable shape</code> first and put the outcome in the plan request. Feature-mode grill treats <code>docs/vision.md</code>, <code>docs/architecture.md</code> and <code>docs/decisions.md</code> as settled, so a visual choice you have not written down will be re-asked or assumed.</li>
+  <li>Build with <code>/software-factory:factory run</code> or <code>next</code>. Before you approve a UI job, run the <a href="#detect">detector</a> on the changed files, or open the page.</li>
+</ol>
+
+<h3 id="rework">A built screen needs a design pass</h3>
+<p>The job is on <code>factory/&lt;id&gt;</code>. You are on the default branch. The page you want to correct is on the job branch. Leave that branch to the builder. A hand edit there never gets a <code>build.md</code> entry, so the next review sees a diff nobody accounted for, and an uncommitted edit on the default branch blocks the next job.</p>
+<p>Look at the page (the builder’s dev server, or a preview of the branch). Then send one note:</p>
+<pre><code>/software-factory:factory rework 014-settings Polish the settings page to match DESIGN.md.
+Keep every acceptance criterion. Do not add product behaviour.
+Run `npx impeccable detect` on the UI files this job changed and fix the findings.</code></pre>
+<p>Name the command you mean: <code>polish</code>, <code>typeset</code>, <code>layout</code>, <code>distill</code>, <code>clarify</code>, <code>harden</code>. The builder implements that note, commits on the job branch, and a new review round runs. You approve after that round, the way you would any other rework.</p>
+<p>Use live mode when you want to steer the screen yourself. Do it before the job, or after this job has merged, on the default branch. Then the next job’s spec describes the result.</p>
+
+<h2 id="detect">6. The detector</h2>
+<p>The detector is the part that fits the factory’s verify step: a command, an exit code, findings with locations. It scans HTML, CSS, JSX, TSX, Vue and Svelte for AI-generated UI tells, accessibility problems and design-quality issues. No model, no API key.</p>
+<pre><code>npx impeccable detect src/
+npx impeccable detect --github src/     # annotations CI can read
+npx impeccable detect --json src/       # one object per finding
+npx impeccable detect --list-rules      # the catalog, no scan</code></pre>
+<p>Run it yourself on the files a UI job changed, and paste anything you want fixed into the rework note. That keeps old screens out of the gate.</p>
+<p>You can also put it on the lint line in <code>CLAUDE.md</code> once the existing UI is clean. The factory runs that command when it verifies a job, so a non-zero exit stops the merge. A scan of the whole tree will fail every later job, including a backend fix, until the old findings are gone. Wait until <code>npx impeccable detect src/</code> exits 0 on the default branch, then add it next to the linter you already have. Leave the test command as the test command.</p>
+<div class="callout warn"><b>Scope it to this product.</b> The rules flag common agent tells (one font everywhere, purple-to-blue gradients, cards nested in cards, gray text on a colored ground, a rounded icon tile above every heading). A product whose <code>DESIGN.md</code> deliberately uses one of those will fail the rule. Record that choice in <code>DESIGN.md</code> and in the spec, and treat that finding as accepted when you rework.</div>
+
+<h2 id="protect">7. Hold the factory to the design</h2>
+<p>Three levers, all of them already in the factory. You do not need a new agent.</p>
+<table>
+  <tr><th>Lever</th><th>What you write</th><th>What happens</th></tr>
+    <tr><td>The request</td><td>“This changes the settings screen. Include the UI reviewer. Match DESIGN.md.”</td><td>A quick job adds the UI reviewer (<code>Extra reviewers: ui</code>). A job that touches a UI flow, auth, data or more than one area is full track, which runs the UI and UX reviewers unless the spec skips them.</td></tr>
+  <tr><td>An acceptance criterion</td><td>In the spec, or in a plan note that becomes one: “The settings page uses the type, color and radius in DESIGN.md. <code>npx impeccable detect</code> reports no findings on the files this job adds.”</td><td>The builder has to meet it, and the UI reviewer judges the diff against it. Anything beyond that list goes in <code>## Beyond the spec</code> and the reviewers see it.</td></tr>
+  <tr><td>A <code>[sign-off]</code> criterion</td><td>“[sign-off] A person has looked at the settings page at desktop and mobile width and accepts it against DESIGN.md.”</td><td>Tests cannot close it. In a <code>run</code> the job still builds and reviews, then parks for you. You sign off from the dashboard or with <code>/software-factory:factory signoff &lt;id&gt;</code>. Use this when craft is the bar and a detector is not enough.</td></tr>
+</table>
+<p>The UI reviewer checks consistency with components and tokens, layout, spacing, responsive behaviour, theming and hierarchy, from the diff. The UX reviewer checks flow, copy, errors, empty and loading states, and accessibility against the spec. Point both at <code>DESIGN.md</code> through <code>CLAUDE.md</code> and the acceptance criteria. A <code>critique</code> you liked is a note in the spec, not a second review file.</p>
+
+<h2 id="run">8. While a factory run is going</h2>
+<ul>
+  <li>Leave Impeccable hooks off. <code>npx impeccable install --no-hooks</code> is the setup this guide uses. If you turned hooks on for a live session, turn them off before <code>/software-factory:factory run</code>.</li>
+  <li>Commit or discard <code>PRODUCT.md</code>, <code>DESIGN.md</code> and any screen edits first. <code>run</code> and <code>next</code> stop on a dirty tree outside <code>factory/</code>, <code>docs/</code> and <code>CLAUDE.md</code>.</li>
+  <li>Let the run finish a job before you start an Impeccable session on the same files. One writer at a time: the builder on <code>factory/&lt;id&gt;</code>, you on the default branch between jobs.</li>
+  <li>Parked UI jobs wait in <code>factory/inbox.md</code>. A design correction is a rework, from the dashboard or from the command in <a href="#rework">section 5</a>. Approving merges what was built.</li>
+</ul>
+
+<h2 id="trouble">9. Troubleshooting</h2>
+<table>
+  <tr><th>What you see</th><th>What to do</th></tr>
+  <tr><td><code>/impeccable</code> is unknown</td><td>You are in a session that started before the install, or the skill was installed in a different repo or harness. From the product root, run <code>npx impeccable install --no-hooks</code> again, reload, and start a new session.</td></tr>
+  <tr><td>The next factory command says the working tree must be clean</td><td>Impeccable left <code>PRODUCT.md</code>, <code>DESIGN.md</code> or source edits uncommitted. Commit them on the default branch, or discard them, then rerun.</td></tr>
+  <tr><td>A job ships a second palette</td><td>The <a href="#claude">CLAUDE.md lines</a> are missing, or the spec never mentions <code>DESIGN.md</code>. Add both, then rework the job with “match DESIGN.md; keep the acceptance criteria.”</td></tr>
+  <tr><td><code>npx impeccable detect</code> fails on code this job did not touch</td><td>Keep the detector out of the lint command until the default branch is clean. Put the findings that are in this job’s files into a rework note. Record pre-existing ones as follow-ups, or fix them in their own job.</td></tr>
+  <tr><td>Hooks rewrote a file during a build</td><td>Reinstall with <code>npx impeccable install --no-hooks</code>, or turn hooks off in the harness, and discard the stray edit if it is not on the job branch. See <a href="#run">section 8</a>.</td></tr>
+  <tr><td>You polished the default branch and the job branch still has the old screen</td><td>The job’s diff is <code>factory/&lt;id&gt;</code>. Rework that job. Leave the default-branch polish for after the merge, or accept it as the new <code>DESIGN.md</code> and tell the rework to match it.</td></tr>
+  <tr><td>Live mode cannot find a dev server</td><td>Start the app the way <code>CLAUDE.md</code> describes, then <code>/impeccable live</code>. Live mode is a session of yours. The factory does not start it.</td></tr>
+  <tr><td>Two harnesses disagree about the design</td><td>Both should read the committed <code>PRODUCT.md</code> and <code>DESIGN.md</code>. Reinstall with project scope in the product repo. Delete a second copy if one harness wrote its own.</td></tr>
+</table>
+
+<h2 id="more">Related</h2>
+<ul>
+  <li><a href="userguide.html">User guide</a> — install, the four skills, the job loop, rework and sign-off.</li>
+  <li><a href="factoryarchitecture.html">Factory architecture</a> — what each agent reads and writes, if you are changing the plugin.</li>
+  <li><a href="https://impeccable.style">impeccable.style</a> — install paths per harness, the command list, the detector, hooks and live mode.</li>
+  <li><a href="https://github.com/pbakaus/impeccable">pbakaus/impeccable</a> — source and license (Apache-2.0).</li>
+</ul>
+</main>
+</div>
+</body>
+</html>
