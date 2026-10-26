@@ -44,6 +44,14 @@ def _events(repo, job):
     return [e for e in (json.loads(line) for line in lines if line.strip()) if e.get("job") == job["id"]]
 
 
+def _check_scopes(repo, job):
+    """Every agent the job ran was checked, and none overstepped."""
+    scope = [e for e in _events(repo, job) if e["kind"] == "scope"]
+    roles = {e["role"] for e in scope}
+    assert {"spec-writer", "builder", "reviewers", "approver"} <= roles, f"scope checks seen: {sorted(roles)}"
+    assert all(e["result"] == "ok" for e in scope), [e for e in scope if e["result"] != "ok"]
+
+
 def _round_one(jobdir):
     """{reviewer file stem: (verdict, findings)} for round 1, and the triage text."""
     rnd = jobdir / "round-1"
@@ -66,6 +74,7 @@ def test_clean_job_verifies_before_review(fx):
     _check_verify_md(fx, repo, job, jobdir)
     log = [(e["kind"], e.get("to") or e.get("result")) for e in _events(repo, job)]
     assert log.index(("verify", "PASS")) < log.index(("transition", "review")), log
+    _check_scopes(repo, job)
     reviews, triage = _round_one(jobdir)
     clean = all(v == "VERDICT: PASS" and n == 0 for v, n in reviews.values())
     events = live.tool_events()
@@ -101,6 +110,7 @@ def test_red_build_gets_a_verify_fix_before_review(fx):
     fail, review = log.index(("verify", "FAIL")), log.index(("transition", "review"))
     assert fail < log.index(("verify", "PASS")) < review, f"reviewers started before the verify fix passed: {log}"
     assert ("transition", "build") in log[fail:review], log
+    _check_scopes(repo, job)
     first_review = min((jobdir / "round-1" / f"{s}.md").stat().st_mtime
                        for s in REVIEW_FILES if (jobdir / "round-1" / f"{s}.md").exists())
     assert sentinel.stat().st_mtime < first_review, "a reviewer wrote its file before the failing verify"

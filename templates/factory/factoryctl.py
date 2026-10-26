@@ -10,6 +10,7 @@ Run from the project root:  python3 factory/factoryctl.py <command> ...   (`--he
 Exit codes: 0 ok, 1 refused or FAIL, 2 usage error, 3 could not run (tool or environment problem), 4 merge conflict.
 """
 import argparse
+import hashlib
 import json
 import os
 import re
@@ -20,7 +21,7 @@ import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 
-VERSION = "2.0.0"           # plugin version this copy shipped with
+VERSION = "2.1.0"           # plugin version this copy shipped with
 BOARD_VERSION = 2
 CONFIG_VERSION = 1
 
@@ -37,12 +38,24 @@ TRANSITIONS = {
     "cancelled": set(),
 }
 REASONS = ["DECISION", "ESCALATE", "SIGN-OFF", "VERIFY FAIL", "MERGE BLOCKED", "NO TEST COMMAND", "NEEDS PR",
-           "AGENT FAILURE"]
+           "AGENT FAILURE", "SCOPE VIOLATION"]
 REVIEWERS = ["security", "ux", "ui", "code"]
 REVIEW_VERDICTS = {"PASS", "CHANGES", "pending", "N/A"}
 TRIAGE_VERDICTS = {"CLEAN", "PATCH", "DECISION", "pending"}
 DECISIONS = {None, "APPROVE", "APPROVE (human)", "ESCALATE"}
 STATE_PATHS = ("factory/", "docs/", "CLAUDE.md")
+# Written while an agent runs by something other than the agent (the dashboard server); never an agent's write.
+SCOPE_EXEMPT = ("factory/actions.jsonl",)
+ROLES = ["spec-writer", "builder", "reviewers", "triager", "approver", "planner", "retro"]
+PLANNER_PASSES = {
+    "1": ["docs/vision.md", "docs/product-brief.md", "docs/open-questions.md"],
+    "2": ["docs/architecture.md", "docs/decisions.md", "docs/open-questions.md"],
+    "3": ["docs/epics.md", "factory/backlog.md", "docs/claude-md-proposal.md", "docs/open-questions.md"],
+    "DOC": ["docs/architecture.md", "docs/decisions.md", "docs/open-questions.md", "docs/claude-md-proposal.md"],
+    "FEATURE 1": [],
+    "FEATURE 2": ["docs/decisions.md", "docs/architecture.md"],
+    "FEATURE 3": ["docs/epics.md", "factory/backlog.md"],
+}
 TAIL_LINES = 40
 DIFF_LIMIT = 3000
 
@@ -265,6 +278,8 @@ def job_errors(job):
                 e.append(f"{where}: {block}.{f} must be UTC ISO 8601 with +00:00")
             elif kind == "int" and not (isinstance(b[f], int) and b[f] >= 0):
                 e.append(f"{where}: {block}.{f} must be a non-negative integer")
+        if block == "execution" and b.get("blocked") is not None and not isinstance(b.get("blocked"), str):
+            e.append(f"{where}: execution.blocked must be text or null")
         if block == "workspace" and b.get("kind") not in ("worktree", "legacy-checkout"):
             e.append(f"{where}: workspace.kind must be worktree or legacy-checkout")
     return e
@@ -564,6 +579,12 @@ def cmd_transition(fac, args):
         raise Refused(f"{args.id}: {src} -> {dst} is not allowed (from {src}: {allowed})")
     reason = clean(args.reason)
     notes = []
+    blocked = job["execution"].get("blocked")
+    if blocked and src != "needs-human" and dst not in ("needs-human", "cancelled"):
+        raise Refused(f"{args.id} is blocked ({blocked}); park it: transition {args.id} needs-human "
+                      f"--reason \"SCOPE VIOLATION: ...\"")
+    if src == "needs-human" and blocked:
+        job["execution"]["blocked"] = None
 
     if dst == "needs-human":
         code = next((r for r in REASONS if reason.upper().startswith(r + ":")), None)
@@ -815,6 +836,154 @@ def cmd_verify(fac, args):
         print("Conflicts: " + ", ".join(conflicts))
         return 4
     return 0 if passed else 1
+
+
+def _snapshot_path(fac, role, job_id):
+    git_dir = Path(fac.git("rev-parse", "--absolute-git-dir").stdout.strip())
+    return git_dir / "factory-snapshots" / f"{job_id or '-'}--{role}.json"
+
+
+def repo_state(fac):
+    """Everything an agent could change in the repository: dirty and untracked files (by content), refs, HEAD."""
+    out = fac.git("status", "--porcelain=v1", "-z", "-uall").stdout
+    files, parts, i = {}, out.split("\0"), 0
+    while i < len(parts):
+        entry = parts[i]
+        i += 1
+        if len(entry) < 4:
+            continue
+        code, path = entry[:2], entry[3:]
+        if code[0] in "RC":
+            files[parts[i]] = ("moved", None)  # the rename's source path
+            i += 1
+        p = fac.root / path
+        digest = None
+        if p.is_file() and not p.is_symlink():
+            digest = hashlib.sha256(p.read_bytes()).hexdigest()
+        files[path] = (code, digest)
+    refs = {}
+    for line in fac.git("for-each-ref", "--format=%(refname) %(objectname)").stdout.splitlines():
+        name, _, sha = line.partition(" ")
+        if not name.startswith("refs/remotes/"):
+            refs[name] = sha
+    head = fac.git("symbolic-ref", "-q", "HEAD", check=False).stdout.strip() or fac.rev("HEAD") or "(none)"
+    return {"files": files, "refs": refs, "head": head}
+
+
+def scope_rules(fac, board, role, job, args):
+    """(exact paths, path prefixes) the role may change in the working tree."""
+    jid = job["id"] if job else None
+    jobdir = f"factory/jobs/{jid}/" if jid else None
+    if role == "spec-writer":
+        return {jobdir + "spec.md"}, ()
+    if role == "builder":
+        return {jobdir + "build.md"}, ()
+    if role == "reviewers":
+        n = str(job["round"])
+        running = [r for r, v in job["reviews"].get(n, {}).items() if r in REVIEWERS and v != "N/A"]
+        return {f"{jobdir}round-{n}/{r}.md" for r in running}, ()
+    if role == "triager":
+        return {f"{jobdir}round-{job['round']}/triage.md"}, ()
+    if role == "approver":
+        return {jobdir + "decision.md"}, ()
+    if role == "retro":
+        return {"factory/retro-proposal.md"}, ()
+    key = ("FEATURE " if args.feature else "") + str(args.pass_ or "").upper()
+    if key not in PLANNER_PASSES:
+        raise Refused("planner needs --pass 1|2|3|DOC (plus --feature <slug> for a feature plan)")
+    if args.feature and not re.fullmatch(r"[a-z0-9][a-z0-9-]{0,60}", args.feature):
+        raise Refused("--feature must be the plan's kebab-case slug")
+    prefixes = (f"docs/features/{args.feature}/",) if args.feature else ()
+    return set(PLANNER_PASSES[key]), prefixes
+
+
+def _scope_target(fac, args):
+    if args.role not in ROLES:
+        raise Refused(f"unknown role {args.role!r}; roles: {', '.join(ROLES)}")
+    board = fac.load_board()
+    job = None
+    if args.role in ("planner", "retro"):
+        if args.job:
+            raise Refused(f"{args.role} works on no job; drop --job")
+    else:
+        if not args.job:
+            raise Refused(f"{args.role} needs --job <id>")
+        job = find_job(board, args.job)
+    return board, job
+
+
+def cmd_snapshot(fac, args):
+    board, job = _scope_target(fac, args)
+    scope_rules(fac, board, args.role, job, args)  # validates --pass/--feature now, not after the agent ran
+    path = _snapshot_path(fac, args.role, job["id"] if job else None)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    state = dict(repo_state(fac), role=args.role, job=job["id"] if job else None, taken=now())
+    write_atomic(path, json.dumps(state, indent=1, sort_keys=True))
+    print(f"snapshot: {args.role}" + (f" for {job['id']}" if job else "") + " (stored under .git, outside the work tree)")
+    return 0
+
+
+def cmd_scope_check(fac, args):
+    board, job = _scope_target(fac, args)
+    cfg = fac.load_config()
+    path = _snapshot_path(fac, args.role, job["id"] if job else None)
+    if not path.exists():
+        raise Refused(f"no snapshot for {args.role}" + (f" on {job['id']}" if job else "") +
+                      ": take one with `snapshot` before spawning the agent")
+    before = json.loads(path.read_text(encoding="utf-8"))
+    after = repo_state(fac)
+    exact, prefixes = scope_rules(fac, board, args.role, job, args)
+
+    def allowed(p):
+        return p in exact or (bool(prefixes) and p.startswith(prefixes))
+
+    problems = []
+    bfiles = {k: tuple(v) for k, v in before["files"].items()}
+    for p in sorted(set(bfiles) | set(after["files"])):
+        if bfiles.get(p) == after["files"].get(p) or p in SCOPE_EXEMPT or p.rsplit("/", 1)[-1] == ".DS_Store":
+            continue
+        if not allowed(p):
+            was = bfiles.get(p, ("clean", None))[0].strip() or "clean"
+            now_ = after["files"].get(p, ("clean", None))[0].strip() or "clean"
+            problems.append(f"changed {p} ({'untracked' if now_ == '??' else now_} after {was})")
+    if after["head"] != before["head"]:
+        problems.append(f"left {after['head'].replace('refs/heads/', '')} checked out "
+                        f"(was {before['head'].replace('refs/heads/', '')})")
+    own = f"refs/heads/{job['branch']}" if job and args.role == "builder" else None
+    for ref in sorted(set(before["refs"]) | set(after["refs"])):
+        if before["refs"].get(ref) != after["refs"].get(ref) and ref != own:
+            what = "created" if ref not in before["refs"] else "deleted" if ref not in after["refs"] else "moved"
+            problems.append(f"{what} {ref.replace('refs/heads/', 'branch ').replace('refs/tags/', 'tag ')}")
+    if own and own in after["refs"] and board.get("default_branch"):
+        allowed_docs = docs_files(fac, job["id"])
+        changed = [n for n in fac.git("diff", "--name-only", f"{board['default_branch']}...{job['branch']}").stdout.split("\n") if n]
+        for n in changed:
+            if n.startswith(STATE_PATHS) and n not in allowed_docs:
+                problems.append(f"{job['branch']} changes {n} (factory state, docs and CLAUDE.md stay off job "
+                                f"branches unless named on the spec's Docs files: line)")
+    label = args.role + (f" on {job['id']}" if job else "")
+    if not problems:
+        path.unlink()
+        fac.append_event({"kind": "scope", "job": job["id"] if job else None, "role": args.role, "result": "ok"}, cfg)
+        print(f"scope: ok ({label})")
+        return 0
+    summary = clean(f"{args.role}: " + "; ".join(problems), 300)
+    if job:
+        job["execution"]["blocked"] = summary
+        job["execution"]["last_error"] = summary
+        job["updated"] = now()
+        fac.save_board(board)
+    fac.append_event({"kind": "scope", "job": job["id"] if job else None, "role": args.role, "result": "violation",
+                      "problems": [clean(p, 200) for p in problems[:20]]}, cfg)
+    print(f"SCOPE VIOLATION ({label}):")
+    for p in problems:
+        print(f"  {p}")
+    print("Nothing was deleted or reverted. Leave the files as they are for the human to inspect.")
+    if job:
+        print(f"NEXT: transition {job['id']} needs-human --reason \"SCOPE VIOLATION: {clean(problems[0], 120)}\"")
+    else:
+        print("NEXT: stop and show the human these changes")
+    return 1
 
 
 def cmd_fresh(fac, args):
@@ -1151,6 +1320,13 @@ def main(argv=None):
     p.add_argument("--build", action="append", default=[])
     p.add_argument("--setup", action="append", default=[])
     p.add_argument("--timeout", type=int, default=1800, help="seconds per command")
+    for name, text in (("snapshot", "record the repository before an agent runs (stored under .git)"),
+                       ("scope-check", "after the agent: fail if it changed anything its role may not")):
+        p = sub.add_parser(name, help=text)
+        p.add_argument("--role", required=True, choices=ROLES)
+        p.add_argument("--job")
+        p.add_argument("--pass", dest="pass_", help="planner pass: 1, 2, 3 or DOC")
+        p.add_argument("--feature", help="planner: the feature plan's slug")
     p = sub.add_parser("fresh", help="exit 0 if the job's verification still holds")
     p.add_argument("id")
     p = sub.add_parser("ready", help="backlog items and why each is or is not ready (read-only)")
