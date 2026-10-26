@@ -42,7 +42,7 @@ When the idea is vague, run brainstorm and then grill. `factory plan` runs both 
 ## What ships
 | Path | Purpose |
 |---|---|
-| `skills/factory/SKILL.md` | Orchestrator (sole writer of `factory/board.json`) |
+| `skills/factory/SKILL.md` | Orchestrator core (the only one who changes `factory/board.json`, through `factoryctl.py`); `run.md`, `inbox-format.md`, `apply.md` and `plan.md` beside it are read only when their command runs |
 | `skills/init/SKILL.md` | Project initializer |
 | `skills/grill/SKILL.md` | "Grill me" interviewer, adapted from mattpocock/skills (MIT, see `NOTICE`); keeps a resumable decision log, ends with an intent doc, supports headless runs |
 | `skills/brainstorm/SKILL.md` | Facilitator-style brainstorming and MoSCoW narrowing, condensed from BMAD's brainstorming |

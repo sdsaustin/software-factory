@@ -3,6 +3,7 @@
 
 Serves the files in this directory (dashboard.html, board.json, ...) and accepts
 one write: POST /api/action, which appends a human decision to actions.jsonl.
+GET /api/doctor runs `factoryctl.py doctor` (read-only, fixed arguments, no input from the request).
 It never touches board.json; the /factory session is the only writer of state
 and picks queued actions up with `/factory apply`.
 
@@ -11,6 +12,8 @@ Binds to 127.0.0.1 only. Open the printed URL (its #t=... part is a per-run toke
 """
 import argparse
 import hmac
+import subprocess
+import time
 import json
 import os
 import re
@@ -30,6 +33,26 @@ JOB_RE = re.compile(r"^\d{3,}-[a-z0-9][a-z0-9-]{0,60}$")
 TYPES = {"approve", "rework", "resume", "signoff"}
 CTRL_RE = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
 LOCK = threading.Lock()
+DOCTOR = {"at": 0.0, "result": None}
+DOCTOR_CACHE_SECONDS = 10
+
+
+def run_doctor():
+    """Run the read-only health check at most once per DOCTOR_CACHE_SECONDS; nothing from the request reaches it."""
+    tool = os.path.join(ROOT, "factoryctl.py")
+    if not os.path.isfile(tool):
+        return 404, {"error": "factoryctl.py is missing: run /software-factory:init"}
+    with LOCK:
+        if DOCTOR["result"] and time.monotonic() - DOCTOR["at"] < DOCTOR_CACHE_SECONDS:
+            return 200, dict(DOCTOR["result"], cached=True)
+        try:
+            r = subprocess.run([sys.executable, "-I", tool, "--dir", ROOT, "doctor"], cwd=os.path.dirname(ROOT),
+                               capture_output=True, text=True, timeout=30)
+            result = {"ok": r.returncode == 0, "output": (r.stdout + r.stderr)[-20000:]}
+        except (OSError, subprocess.TimeoutExpired) as e:
+            result = {"ok": False, "output": f"health check could not run: {e.__class__.__name__}"}
+        DOCTOR.update(at=time.monotonic(), result=result)
+        return 200, dict(result, cached=False)
 
 
 def load_board():
@@ -122,6 +145,8 @@ def make_handler(port, token):
                 return self._json(403, {"error": "bad host"})
             if self.path.split("?")[0] == "/api/ping":
                 return self._json(200, {"ok": True})
+            if self.path.split("?")[0] == "/api/doctor":
+                return self._json(*run_doctor())
             return super().do_GET()
 
         def do_HEAD(self):

@@ -96,6 +96,9 @@ button.opt.rec{border-color:var(--acc)}button.opt.sel{background:color-mix(in sr
 textarea,input.cmd{width:100%;margin:8px 0 0;font:inherit;color:var(--fg);background:var(--bg);border:1px solid var(--bd);border-radius:6px;padding:6px}
 .acts{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}.confirm,.queued,.msg{margin-top:8px;padding:8px;border-radius:6px;background:var(--bg);border:1px solid var(--bd)}
 code{font:12px ui-monospace,monospace}
+.kv{display:grid;grid-template-columns:max-content 1fr;gap:4px 14px;margin:0 0 12px}.kv dt{color:var(--mut,#888)}.kv dd{margin:0;overflow-wrap:anywhere}
+pre.out{white-space:pre-wrap;overflow-wrap:anywhere;font:12px ui-monospace,monospace;max-height:340px;overflow:auto;margin:8px 0 0}
+table.ev{border-collapse:collapse;width:100%;font-size:12px}table.ev td{border-top:1px solid var(--bd);padding:3px 6px;vertical-align:top}
 </style>
 </head>
 <body>
@@ -107,6 +110,7 @@ code{font:12px ui-monospace,monospace}
     <div class="panel"><h2 class="sec">Backlog queue</h2><div id="backlog"></div></div>
     <div class="panel"><h2 class="sec">Epics</h2><div id="epics"></div></div>
   </div>
+  <div class="panel"><h2 class="sec">Health</h2><div id="health"></div></div>
   <h2 class="sec">Jobs</h2>
   <main id="board"></main>
 </div>
@@ -338,7 +342,7 @@ function card(j){
     `<div class="round">Round ${esc(n)}: ${REV.map(k=>`<span class="chip ${esc(r[k]||"")}">${k}: ${esc(r[k]||"pending")}</span>`).join("")}${r.triage?`<span class="chip">triage: ${esc(r.triage)}</span>`:""}</div>`).join("");
   return `<div class="card ${j.stage==="needs-human"?"nh":""}" onclick='openJob(${JSON.stringify(j.id)})'>
     <b>${esc(j.id)}</b>${esc(j.title||"")}<div><span class="badge">${esc(j.track||"?")}</span> ${j.decision?`<span class="badge">${esc(j.decision)}</span>`:""}
-    ${j.item?`<span class="badge">${esc(j.item)}</span>`:""}${j.assumptions?`<span class="badge warn">${esc(j.assumptions)} assumption${j.assumptions>1?"s":""}</span>`:""}</div>${j.parked_reason?`<div class="round">${esc(j.parked_reason)}</div>`:""}${rounds}</div>`;
+    ${j.item?`<span class="badge">${esc(j.item)}</span>`:""}${j.assumptions?`<span class="badge warn">${esc(j.assumptions)} assumption${j.assumptions>1?"s":""}</span>`:""}${(j.execution||{}).blocked?`<span class="badge warn">blocked</span>`:""}</div>${j.parked_reason?`<div class="round">${esc(j.parked_reason)}</div>`:""}${rounds}</div>`;
 }
 /* Markdown for the file viewer. Agent-written text is untrusted and this page holds a token that can queue merges,
    so nothing is passed through as HTML: every piece of text is escaped first, and only the constructs below are
@@ -416,6 +420,7 @@ function diffHtml(t){
 }
 let VIEW={id:null,f:null,text:"",raw:false};
 function renderView(){
+  if(VIEW.f==="status")return;
   const {f,text,raw}=VIEW;
   $("fname").textContent=f||"";
   $("rawbtn").textContent=raw?"Show formatted":"Show source";
@@ -430,9 +435,32 @@ function toggleRaw(){VIEW.raw=!VIEW.raw;renderView()}
 async function openJob(id){
   const b=await (await fetch("board.json?"+Date.now())).json();
   const j=b.jobs.find(x=>x.id===id);
-  $("tabs").innerHTML=FILES(j).map(f=>`<button data-f="${esc(f)}" onclick='showFile(${JSON.stringify(id)},${JSON.stringify(f)})'>${esc(f)}</button>`).join("");
+  $("tabs").innerHTML=`<button data-f="status" onclick='showStatus(${JSON.stringify(id)})'>status</button>`+
+    FILES(j).map(f=>`<button data-f="${esc(f)}" onclick='showFile(${JSON.stringify(id)},${JSON.stringify(f)})'>${esc(f)}</button>`).join("");
   $("viewer").style.display="block";
-  showFile(id,"spec.md");
+  showStatus(id);
+}
+const short=v=>v?esc(String(v).slice(0,10)):"—";
+async function showStatus(id){
+  document.querySelectorAll("#tabs button").forEach(b=>b.classList.toggle("on",b.dataset.f==="status"));
+  VIEW={id,f:"status",text:"",raw:false,msg:""};$("fname").textContent=`${id} · status`;
+  const b=await (await fetch("board.json?"+Date.now())).json();const j=b.jobs.find(x=>x.id===id)||{};
+  const ws=j.workspace||{},ex=j.execution||{},ev=j.evidence||{};
+  const rows=[["Stage",esc(j.stage)+(j.parked_reason?` — ${esc(j.parked_reason)}`:"")],["Round",esc(j.round)],["Attempt",esc(ex.attempt??"—")],
+    ["Branch",`<code>${esc(j.branch||"")}</code>`],
+    ["Worktree",ws.kind==="worktree"?(ws.path?`<code>${esc(ws.path)}</code>`:"removed after the job finished"):"the project checkout (before 2.2.0)"],
+    ["Base commit",short(ws.base_commit)],
+    ["Verified",ev.verified_commit?`${short(ev.verified_commit)} (${esc(ev.tested||"branch")}, ${esc(ev.verified_at||"")})`:(ev.head_commit?`not passing (last tried ${short(ev.head_commit)})`:"not yet")]];
+  if(ex.blocked)rows.push(["Blocked",`<b>${esc(ex.blocked)}</b>`]);
+  if(ex.last_error&&ex.last_error!==ex.blocked)rows.push(["Last error",esc(ex.last_error)]);
+  let evs=[];
+  try{const t=await (await fetch("events.jsonl?"+Date.now())).text();
+    for(const line of t.split("\n")){if(!line.trim())continue;try{const e=JSON.parse(line);if(e.job===id)evs.push(e)}catch(_){}}}catch(_){}
+  const what=e=>e.kind==="transition"?`${esc(e.from)} → ${esc(e.to)}`:e.kind==="verify"?`verify ${esc(e.result)} ${short(e.commit)}`
+    :e.kind==="scope"?`scope ${esc(e.role)}: ${esc(e.result)}`:e.kind==="worktree"?`worktree ${esc(e.action)}`:esc(e.kind);
+  const log=evs.slice(-20).reverse().map(e=>`<tr><td>${esc((e.at||"").replace("T"," ").replace("+00:00"," UTC"))}</td><td>${what(e)}</td><td>${esc(e.actor==="human"?"human":"")}</td><td>${esc(e.reason||(e.problems||[]).join("; "))}</td></tr>`).join("");
+  $("content").innerHTML=`<dl class="kv">${rows.map(([k,v])=>`<dt>${k}</dt><dd>${v}</dd>`).join("")}</dl>`+
+    (log?`<h3>History (latest first)</h3><table class="ev">${log}</table>`:`<div class="empty">No events recorded for this job yet.</div>`);
 }
 async function showFile(id,f){
   document.querySelectorAll("#tabs button").forEach(b=>b.classList.toggle("on",b.dataset.f===f));
@@ -441,7 +469,17 @@ async function showFile(id,f){
   catch(e){VIEW.msg="(unavailable)"}
   renderView();
 }
-load();setInterval(()=>load(false),3000);
+function renderHealth(){
+  if(!SERVER){$("health").innerHTML=`<div class="empty">Run <code>/software-factory:factory doctor</code> in Claude Code (or <code>python3 factory/factoryctl.py doctor</code>) for a health check. With <code>python3 factory/server.py</code> running, it can run from here.</div>`;return}
+  if(!$("health").dataset.ready){$("health").innerHTML=`<button onclick="runDoctor()">Run health check</button> <span class="empty">Read-only: checks the board, config, branches, worktrees, inbox and queued clicks.</span><div id="doctor"></div>`;$("health").dataset.ready="1"}
+}
+async function runDoctor(){
+  $("doctor").innerHTML=`<div class="empty">Checking…</div>`;
+  try{const r=await fetch("api/doctor");const d=await r.json();
+    $("doctor").innerHTML=`<div class="${d.ok?"":"chg"}">${d.ok?"No failures.":"Something needs fixing."}${d.cached?" (result from the last few seconds)":""}</div><pre class="out">${esc(d.output||d.error||"")}</pre>`}
+  catch(e){$("doctor").innerHTML=`<div class="empty">The health check is unavailable (${esc(e.message)}).</div>`}
+}
+load();setInterval(()=>{load(false);renderHealth()},3000);setTimeout(renderHealth,300);
 </script>
 </body>
 </html>

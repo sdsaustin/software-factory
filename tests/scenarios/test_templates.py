@@ -62,3 +62,16 @@ def test_upgrade_fixture_boards(fx):
         for job in board["jobs"]:
             assert re.fullmatch(r"\d{3}-[a-z0-9-]+", job["id"]), (name, job["id"])
         json.dumps(board)
+
+
+def test_dashboard_script_parses(fx):
+    """A syntax error would leave the dashboard blank; node checks the inline script where it is installed."""
+    import shutil
+    from helpers import Skip
+    node = shutil.which("node")
+    if not node:
+        raise Skip("node is not installed")
+    html = (FACTORY_TEMPLATES / "dashboard.html").read_text()
+    script = fx.root / "dashboard.js"
+    script.write_text("\n".join(re.findall(r"<script>(.*?)</script>", html, re.S)))
+    fx.run([node, "--check", str(script)])

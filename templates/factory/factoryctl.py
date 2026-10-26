@@ -21,7 +21,7 @@ import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 
-VERSION = "2.2.0"           # plugin version this copy shipped with
+VERSION = "2.3.0"           # plugin version this copy shipped with
 BOARD_VERSION = 2
 CONFIG_VERSION = 1
 
@@ -1226,6 +1226,148 @@ def cmd_recover(fac, args):
     return 0
 
 
+QUALITY = ["Security", "Privacy", "Observability", "Reliability", "Support"]
+
+
+def _sections(text, level):
+    """{heading text: body} for headings of exactly `level` hashes."""
+    marks = [(m.start(), m.end(), m.group(1).strip()) for m in re.finditer(rf"^{'#' * level} (?!#)(.+)$", text, re.M)]
+    out = {}
+    for i, (start, end, title) in enumerate(marks):
+        stop = marks[i + 1][0] if i + 1 < len(marks) else len(text)
+        body = text[end:stop]
+        if level > 2:
+            nxt = re.search(r"^#{2,%d} (?!#)" % (level - 1), body, re.M)
+            body = body[:nxt.start()] if nxt else body
+        out[title] = body
+    return out
+
+
+def _check_architecture(text, level, accelerator, fails, doc=False):
+    heads = _sections(text, level)
+    h = "#" * level
+    if "Components and boundaries" not in heads and "Components and interfaces" not in heads:
+        fails.append(f"no `{h} Components and boundaries` section (principal modules, what each owns, the "
+                     f"interfaces between them)")
+    if not doc:
+        qa = heads.get("Quality attributes")
+        if qa is None:
+            fails.append(f"no `{h} Quality attributes` section ({', '.join(QUALITY)})")
+        else:
+            missing = [q for q in QUALITY if not re.search(rf"^- {q}:\s*\S", qa, re.M)]
+            if missing:
+                fails.append(f"Quality attributes lacks a `- <name>:` line for {', '.join(missing)} "
+                             f"(write `not applicable: <why>` when it does not apply)")
+        if "Pre-mortem" not in heads:
+            fails.append(f"no `{h} Pre-mortem` section")
+    if accelerator and "Core and extension seams" not in heads:
+        fails.append(f"the brief calls this an accelerator, but there is no `{h} Core and extension seams` section "
+                     f"(what is reusable core, what is per-customer configuration, and where they meet)")
+
+
+def _check_commands(text, fails, allow_none=False):
+    body = _sections(text, 2).get("Run and test commands")
+    if body is None:
+        fails.append("no `## Run and test commands` section")
+        return
+    for name, required in (("Test", True), ("Run", True), ("Lint", False), ("Build", False)):
+        m = re.search(rf"^- {name}:\s*(.+)$", body, re.M)
+        value = m.group(1).strip() if m else ""
+        exact = bool(re.match(r"`[^`]+`", value))
+        if not m:
+            fails.append(f"Run and test commands lacks `- {name}:`")
+        elif required and not exact and not (allow_none and value.lower().startswith("none")):
+            fails.append(f"`- {name}:` must give the exact command in backticks, not {value[:40]!r}")
+        elif not required and not exact and not value.lower().startswith("none"):
+            fails.append(f"`- {name}:` must be a command in backticks or `none (<why>)`")
+
+
+def _check_decisions(text, fails, only_feature=None, doc=False):
+    blocks = re.split(r"^(?=## AD\d+)", text, flags=re.M)
+    records = [b for b in blocks if re.match(r"## AD\d+", b)]
+    if only_feature:
+        records = [b for b in records if re.search(rf"^Feature: {re.escape(only_feature)}\s*$", b, re.M)]
+    if not records and not only_feature:
+        fails.append("decisions.md has no `## AD<n>` records")
+    assumed = []
+    for b in records:
+        ad = re.match(r"## (AD\d+)(.*)", b)
+        name = ad.group(1)
+        status = re.search(r"Status:\s*\**\s*(accepted|assumed|inferred|superseded by AD\d+)", b, re.I)
+        if not status:
+            fails.append(f"{name}: no `Status: accepted|assumed|inferred` line")
+        elif status.group(1).lower() == "assumed":
+            assumed.append(f"{name}{ad.group(2).rstrip()}")
+        if not re.search(r"\bConsequences\b", b):
+            fails.append(f"{name}: no Consequences")
+        if not re.search(r"\bContext\b", b) and not (doc and re.search(r"\bEvidence\b", b)):
+            fails.append(f"{name}: no Context")
+    return assumed
+
+
+def _check_backlog(fac, fails):
+    seen, order = {}, []
+    for item in backlog_items(fac):
+        if not re.match(r"B\d+ ", item["text"]):
+            fails.append(f"backlog line without a B<n> id: {item['text'][:60]}")
+            continue
+        if item["id"] in seen:
+            fails.append(f"duplicate backlog id {item['id']}")
+        seen[item["id"]] = len(order)
+        order.append(item)
+    for item in order:
+        for d in item["deps"]:
+            if d not in seen:
+                fails.append(f"{item['id']} depends on {d}, which is not in the backlog")
+            elif seen[d] >= seen[item["id"]]:
+                fails.append(f"{item['id']} depends on {d}, which is not earlier in the backlog")
+
+
+def cmd_plan_check(fac, args):
+    """Gate for a planner pass: the documents have the sections and labels the human approves against."""
+    docs = fac.root / "docs"
+    pass_ = str(args.pass_).upper()
+    if pass_ not in ("2", "3", "DOC"):
+        raise Refused("plan-check runs after pass 2, 3 or DOC")
+    fails, assumed = [], []
+
+    def read(path):
+        try:
+            return path.read_text(encoding="utf-8")
+        except FileNotFoundError:
+            fails.append(f"{path.relative_to(fac.root)} is missing")
+            return ""
+    brief = (docs / "features" / args.feature / "brief.md") if args.feature else (docs / "product-brief.md")
+    brief_text = brief.read_text(encoding="utf-8") if brief.exists() else ""
+    if not args.feature and (docs / "vision.md").exists():
+        brief_text += (docs / "vision.md").read_text(encoding="utf-8")
+    accelerator = bool(re.search(r"\baccelerator\b", brief_text, re.I))
+    if pass_ in ("2", "DOC"):
+        arch, decisions = read(docs / "architecture.md"), read(docs / "decisions.md")
+        if args.feature:
+            section = _sections(arch, 2).get(f"Feature: {args.feature}")
+            if section is None:
+                fails.append(f"architecture.md has no `## Feature: {args.feature}` section")
+            else:
+                _check_architecture(section, 3, accelerator, fails)
+            assumed = _check_decisions(decisions, fails, only_feature=args.feature)
+        else:
+            if arch:
+                _check_architecture(arch, 2, accelerator, fails, doc=pass_ == "DOC")
+                _check_commands(arch, fails, allow_none=pass_ == "DOC")
+            if decisions:
+                assumed = _check_decisions(decisions, fails, doc=pass_ == "DOC")
+    else:
+        _check_backlog(fac, fails)
+    label = ("FEATURE " + args.feature + " " if args.feature else "") + "PASS " + pass_
+    for f in fails:
+        print(f"FAIL {f}")
+    if assumed:
+        print("ASSUMED (show these to the human at the gate): " + "; ".join(assumed))
+    print(f"{label}: {'ok' if not fails else str(len(fails)) + ' problem(s)'}")
+    return 1 if fails else 0
+
+
 def cmd_fresh(fac, args):
     board = fac.load_board()
     fresh, why = freshness(fac, board, find_job(board, args.id))
@@ -1603,6 +1745,10 @@ def main(argv=None):
     p.add_argument("id")
     p.add_argument("--reason", required=True)
     p.add_argument("--action-id")
+    p = sub.add_parser("plan-check", help="after a planner pass: required sections, exact commands, decision labels, "
+                                          "backlog ids (read-only)")
+    p.add_argument("--pass", dest="pass_", required=True, help="2, 3 or DOC")
+    p.add_argument("--feature", help="the feature plan's slug")
     p = sub.add_parser("fresh", help="exit 0 if the job's verification still holds")
     p.add_argument("id")
     p = sub.add_parser("ready", help="backlog items and why each is or is not ready (read-only)")

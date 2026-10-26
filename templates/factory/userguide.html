@@ -310,6 +310,7 @@ factory/
 <p>Run the server shown in Setup and open the URL it prints. It refreshes every 3 seconds.</p>
 <ul>
   <li>Columns follow the stages: spec, build, verify, review, triage, decision, needs-human, done, cancelled.</li>
+  <li>Click a job for its <b>status</b> tab: worktree, the commit its tests passed on, anything blocking it, and its history. The <b>Health</b> panel runs <code>/factory doctor</code>'s check when the server is running.</li>
   <li>Each card shows the track and one chip per reviewer per round: <span class="pass">PASS</span>, <span class="chg">CHANGES</span> or grey while pending.</li>
   <li><code>needs-human</code> cards are outlined in amber. Those are the ones waiting on you.</li>
   <li>Click a card to read its spec, build notes, reviews, triage and decision.</li>

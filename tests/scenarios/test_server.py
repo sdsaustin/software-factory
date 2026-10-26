@@ -176,3 +176,29 @@ def test_unreadable_board_rejects_everything(fx):
     assert board == {}
     assert srv.validate({"type": "approve", "job": JOB}, board) == "job is not waiting for a human"
     assert srv.validate({"type": "resume"}, board) == "there is no stopped run to resume"
+
+
+def test_health_check_endpoint_is_read_only_and_cached(fx):
+    from helpers import tree_digest
+    from helpers.projects import toy_project
+    repo = toy_project(fx)
+    before = tree_digest(repo, ["factory", "CLAUDE.md"])
+
+    def check(srv):
+        status, body = srv.request("GET", "/api/doctor", token=False)
+        assert status == 200 and body["ok"] is True and body["cached"] is False, body
+        assert "board.json valid" in body["output"]
+        status, again = srv.request("GET", "/api/doctor?x=1", token=False)
+        assert again["cached"] is True and again["output"] == body["output"]
+        assert srv.request("GET", "/api/doctor", host="evil.example:80")[0] == 403
+    _with_server(fx, repo / "factory", check)
+    assert tree_digest(repo, ["factory", "CLAUDE.md"]) == before, "the health check must not write"
+
+
+def test_health_check_without_the_state_tool(fx):
+    factory = _factory(fx)
+
+    def check(srv):
+        status, body = srv.request("GET", "/api/doctor")
+        assert status == 404 and "factoryctl.py is missing" in body["error"]
+    _with_server(fx, factory, check)
