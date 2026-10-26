@@ -56,6 +56,13 @@ def _check_scopes(repo, job):
     assert all(e["result"] == "ok" for e in scope), [e for e in scope if e["result"] != "ok"]
 
 
+def _check_isolation(live):
+    """The run keeps each job in a fresh sub-orchestrator: the main session spawns no role agent itself."""
+    spawned = [(e["file"], role_of(e)) for e in live.tool_events() if e["tool"] in ("Agent", "Task") and role_of(e)]
+    in_main = sorted({role for f, role in spawned if not f.startswith("agent-")})
+    assert not in_main, f"the outer orchestrator ran job steps itself ({', '.join(in_main)}): the job left its fresh context"
+
+
 def _round_one(jobdir):
     """{reviewer file stem: (verdict, findings)} for round 1, and the triage text."""
     rnd = jobdir / "round-1"
@@ -90,15 +97,7 @@ def test_clean_job_verifies_before_review(fx):
     else:
         assert "triager not run" not in triage, "skipped triage although a reviewer had findings"
         print(f"  observed: findings in round 1 ({reviews}), triager ran")
-    reviewer_at = [e["ts"] for e, r in zip(events, roles) if r and r.startswith("reviewer-")]
-    verify_writes = [e["ts"] for e in events
-                     if (e["tool"] == "Write" and str(e["input"].get("file_path", "")).endswith("/verify.md"))
-                     or (e["tool"] == "Bash" and "verify.md" in str(e["input"].get("command", ""))
-                         and ">" in str(e["input"].get("command", "")))]
-    if reviewer_at and verify_writes:
-        assert min(verify_writes) < min(reviewer_at), "reviewers ran before verify.md was written"
-    else:
-        print("  note: transcripts did not show both the verify write and reviewer spawns; ordering not checked")
+    _check_isolation(live)
 
 
 def test_red_build_gets_a_verify_fix_before_review(fx):
@@ -118,9 +117,4 @@ def test_red_build_gets_a_verify_fix_before_review(fx):
     first_review = min((jobdir / "round-1" / f"{s}.md").stat().st_mtime
                        for s in REVIEW_FILES if (jobdir / "round-1" / f"{s}.md").exists())
     assert sentinel.stat().st_mtime < first_review, "a reviewer wrote its file before the failing verify"
-    roles = [role_of(e) for e in live.tool_events()]
-    if "builder" in roles and any(r and r.startswith("reviewer-") for r in roles):
-        first_reviewer = next(i for i, r in enumerate(roles) if r and r.startswith("reviewer-"))
-        assert roles[:first_reviewer].count("builder") >= 2, "reviewers spawned before the builder's verify fix"
-    else:
-        print("  note: transcripts did not show builder and reviewer spawns; ordering checked by file times only")
+    _check_isolation(live)
