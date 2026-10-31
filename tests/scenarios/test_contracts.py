@@ -8,7 +8,7 @@ from helpers.server import load_module
 
 SKILL = REPO / "skills" / "factory" / "SKILL.md"
 AGENTS = REPO / "agents"
-REVIEWERS = ["reviewer-security", "reviewer-code", "reviewer-ui", "reviewer-ux"]
+REVIEWERS = ["reviewer-security", "reviewer-code", "reviewer-ui", "reviewer-ux", "reviewer-architecture"]
 
 
 def _text(path):

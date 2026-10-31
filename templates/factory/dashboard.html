@@ -117,8 +117,8 @@ table.ev{border-collapse:collapse;width:100%;font-size:12px}table.ev td{border-t
 <div id="viewer"><div class="box"><div id="tabs"></div><div id="content"></div><div class="vbar"><span class="fname" id="fname"></span><span><button id="rawbtn" onclick="toggleRaw()">Show source</button><button onclick="viewer.style.display='none'">Close</button></span></div></div></div>
 <script>
 const STAGES=["spec","build","verify","review","triage","decision","needs-human","done","cancelled"];
-const REV=["security","ux","ui","code"];
-const FILES=(j)=>["spec.md","build.md","verify.md","branch.diff","decision.md",...Object.keys(j.reviews||{}).flatMap(n=>[...REV.map(r=>`round-${n}/${r}.md`),`round-${n}/triage.md`])];
+const REV=["security","ux","ui","code","architecture"];
+const FILES=(j)=>["spec.md","build.md","verify.md","branch.diff","decision.md",...Object.keys(j.reviews||{}).flatMap(n=>[...REV.filter(r=>r in (j.reviews[n]||{})).map(r=>`round-${n}/${r}.md`),`round-${n}/triage.md`])];
 const $=id=>document.getElementById(id);
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const txt=async p=>{try{const r=await fetch(p+"?"+Date.now());return r.ok?await r.text():""}catch(e){return ""}};
@@ -339,7 +339,7 @@ function render(jobs){
 }
 function card(j){
   const rounds=Object.entries(j.reviews||{}).map(([n,r])=>
-    `<div class="round">Round ${esc(n)}: ${REV.map(k=>`<span class="chip ${esc(r[k]||"")}">${k}: ${esc(r[k]||"pending")}</span>`).join("")}${r.triage?`<span class="chip">triage: ${esc(r.triage)}</span>`:""}</div>`).join("");
+    `<div class="round">Round ${esc(n)}: ${REV.filter(k=>k in r).map(k=>`<span class="chip ${esc(r[k]||"")}">${k}: ${esc(r[k]||"pending")}</span>`).join("")}${r.triage?`<span class="chip">triage: ${esc(r.triage)}</span>`:""}</div>`).join("");
   return `<div class="card ${j.stage==="needs-human"?"nh":""}" onclick='openJob(${JSON.stringify(j.id)})'>
     <b>${esc(j.id)}</b>${esc(j.title||"")}<div><span class="badge">${esc(j.track||"?")}</span> ${j.decision?`<span class="badge">${esc(j.decision)}</span>`:""}
     ${j.item?`<span class="badge">${esc(j.item)}</span>`:""}${j.assumptions?`<span class="badge warn">${esc(j.assumptions)} assumption${j.assumptions>1?"s":""}</span>`:""}${(j.execution||{}).blocked?`<span class="badge warn">blocked</span>`:""}</div>${j.parked_reason?`<div class="round">${esc(j.parked_reason)}</div>`:""}${rounds}</div>`;

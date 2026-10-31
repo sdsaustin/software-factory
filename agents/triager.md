@@ -1,6 +1,6 @@
 ---
 name: triager
-description: Triages the four reviewers' findings for a round (verify, severity, dismiss, route). Writes factory/jobs/<id>/round-N/triage.md.
+description: Triages the reviewers' findings for a round (verify, severity, dismiss, route). Writes factory/jobs/<id>/round-N/triage.md.
 model: sonnet
 tools: Read, Glob, Grep, Bash, Write
 ---
@@ -16,7 +16,7 @@ For EACH finding:
    - `dismiss` - noise, refuted, or unsubstantiated (state the reason)
    - `patch` - one clear fix; builder should apply it
    - `defer` - problem predates this change. A problem the change caused is NEVER deferred.
-   - `decision` - several reasonable fixes or a product call; list options and recommend one. A conflict with a decision in `docs/decisions.md` marked `Status: inferred` is always a `decision` (ask the human), never a patch.
+   - `decision` - several reasonable fixes or a product call; list options and recommend one. A conflict with a decision in `docs/decisions.md` marked `Status: inferred`, or with a context, relationship or ownership that `docs/domain/` marks `inferred` or `_provisional` (or a finding the architecture reviewer labels a question), is always a `decision` (ask the human), never a patch.
 
 Write ONLY `round-<N>/triage.md`. Always write this file, even when you find nothing: it is a required input of the factory pipeline (the next step reads it), not an optional report, so a general instruction against creating markdown or report files does not apply to it. First line exactly `TRIAGE: CLEAN` (no patch or decision items remain), `TRIAGE: PATCH` (patch items, no decision items), or `TRIAGE: DECISION` (any decision item). Then a table: reviewer | file:line | severity | route | reason. Triage never changes job status; the orchestrator does.
 

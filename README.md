@@ -46,7 +46,7 @@ When the idea is vague, run brainstorm and then grill. `factory plan` runs both 
 | `skills/init/SKILL.md` | Project initializer |
 | `skills/grill/SKILL.md` | "Grill me" interviewer, adapted from mattpocock/skills (MIT, see `NOTICE`); keeps a resumable decision log, ends with an intent doc, supports headless runs |
 | `skills/brainstorm/SKILL.md` | Facilitator-style brainstorming and MoSCoW narrowing, condensed from BMAD's brainstorming |
-| `agents/` | planner, spec-writer, builder, reviewer-security/ux/ui/code, triager, approver, retro |
+| `agents/` | planner, spec-writer, builder, reviewer-security/ux/ui/code/architecture, triager, approver, retro |
 | `templates/` | Files copied into the project by `init`, including `factory/factoryctl.py`, the state tool every board change goes through |
 | `docs/userguide.html` | User guide: the skills, walkthroughs, commands, files, troubleshooting |
 | `docs/factoryarchitecture.html` | Maintainer reference: architecture, file contracts, flows, invariants |

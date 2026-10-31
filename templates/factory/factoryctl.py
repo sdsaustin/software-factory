@@ -40,7 +40,7 @@ TRANSITIONS = {
 }
 REASONS = ["DECISION", "ESCALATE", "SIGN-OFF", "VERIFY FAIL", "MERGE BLOCKED", "NO TEST COMMAND", "NEEDS PR",
            "AGENT FAILURE", "SCOPE VIOLATION"]
-REVIEWERS = ["security", "ux", "ui", "code"]
+REVIEWERS = ["security", "ux", "ui", "code", "architecture"]
 REVIEW_VERDICTS = {"PASS", "CHANGES", "pending", "N/A"}
 TRIAGE_VERDICTS = {"CLEAN", "PATCH", "DECISION", "pending"}
 DECISIONS = {None, "APPROVE", "APPROVE (human)", "ESCALATE"}
@@ -471,13 +471,74 @@ def freshness(fac, board, job):
     return True, f"verified {head[:10]} at {ev['verified_at']}"
 
 
-def expected_reviewers(job):
+def expected_reviewers(job, fac=None, board=None):
+    """Reviewers for the job's next round. `architecture` exists only in a project with a domain model: always on
+    the full track, and on quick only when architecture_triggers() finds a reason."""
     track = job.get("track")
+    domain = fac is not None and has_domain(fac)
     if track == "full":
-        run = [r for r in REVIEWERS if r not in job.get("skip_reviewers", [])]
+        run = [r for r in REVIEWERS if r not in job.get("skip_reviewers", []) and (r != "architecture" or domain)]
     else:
         run = ["security", "code"] + [r for r in ("ux", "ui") if r in job.get("extra_reviewers", [])]
+        if domain and architecture_triggers(fac, board, job):
+            run.append("architecture")
     return [r for r in REVIEWERS if r in run]
+
+
+def architecture_triggers(fac, board, job):
+    """Why a quick-track job still needs the architecture reviewer (empty list: skip it). Deterministic, no agent:
+    a published interface, a `_shared` path or the domain docs changed, a forbidden glossary synonym was added,
+    or the job does not stay inside exactly one context."""
+    default = (board or {}).get("default_branch")
+    if not default or not fac.rev(job["branch"]):
+        return ["the diff cannot be read, so the architecture reviewer runs"]
+    ownership, _prov, bad = load_ownership_full(fac)
+    if bad:
+        return ["the domain files are invalid: " + bad[0]]
+    reasons = []
+    if len(job.get("contexts") or []) != 1:
+        reasons.append(f"the job declares {len(job.get('contexts') or [])} contexts, not exactly one")
+    names = [n for n in fac.git("diff", "--name-only", f"{default}...{job['branch']}").stdout.split("\n") if n]
+    if any(n.startswith("docs/domain/") for n in names):
+        reasons.append("docs/domain/ changed")
+    code = [n for n in names if not n.startswith(STATE_PATHS)]
+    shared = [n for n in code if path_owner(ownership, n) == SHARED]
+    if shared:
+        reasons.append(f"shared path {shared[0]} changed")
+    iface = published_interface_globs(fac)
+    hit = next(((n, g) for n in code for g in iface if fnmatch.fnmatch(n, g) or n.startswith(g.rstrip("/*") + "/")), None)
+    if hit:
+        reasons.append(f"{hit[0]} implements a published interface ({hit[1]})")
+    avoid = forbidden_synonyms(fac)
+    if avoid and code:
+        added = "\n".join(l[1:] for l in fac.git("diff", "-U0", f"{default}...{job['branch']}", "--", *code).stdout.split("\n")
+                          if l.startswith("+") and not l.startswith("+++"))
+        added = re.sub(r"([a-z0-9])([A-Z])", r"\1 \2", added).replace("_", " ")  # make_bill, MakeBill -> words
+        word = next((w for w in avoid if re.search(rf"\b{re.escape(w)}\b", added, re.I)), None)
+        if word:
+            reasons.append(f"the diff adds the forbidden synonym {word!r}")
+    return reasons
+
+
+def published_interface_globs(fac):
+    """Backticked path globs on lines of each `docs/domain/contexts/*.md` `## Published interfaces` section."""
+    out = []
+    for f in sorted((domain_dir(fac) / "contexts").glob("*.md")):
+        body = _sections(f.read_text(encoding="utf-8"), 2).get("Published interfaces", "")
+        for tok in re.findall(r"`([^`\s]+)`", body):
+            if "/" in tok and not tok.startswith(("/", "GET ", "POST ")):
+                out.append(tok)
+    return out
+
+
+def forbidden_synonyms(fac):
+    gl = domain_dir(fac) / "glossary.md"
+    if not gl.exists():
+        return []
+    words = []
+    for m in re.finditer(r"Avoid:\s*(.+)$", gl.read_text(encoding="utf-8"), re.M):
+        words += [w.strip(" .`*") for w in m.group(1).split(",") if w.strip(" .`*")]
+    return words
 
 
 def parse_value(raw):
@@ -643,9 +704,11 @@ def cmd_transition(fac, args):
         if not fresh:
             raise Refused(f"{args.id}: cannot start a review without passing verification of the current head: {why}")
         job["round"] += 1
-        run = expected_reviewers(job)
-        job["reviews"][str(job["round"])] = dict({r: ("pending" if r in run else "N/A") for r in REVIEWERS},
-                                                 triage="pending")
+        run = expected_reviewers(job, fac, board)
+        job["reviews"][str(job["round"])] = dict({r: ("pending" if r in run else "N/A") for r in REVIEWERS
+                                                  if r != "architecture" or has_domain(fac)}, triage="pending")
+        if "architecture" in run and job.get("track") != "full":
+            notes.append("architecture reviewer runs on this quick job: " + "; ".join(architecture_triggers(fac, board, job)))
         (fac.dir / "jobs" / args.id / f"round-{job['round']}").mkdir(parents=True, exist_ok=True)
         notes.append(f"round {job['round']}: spawn {', '.join('reviewer-' + r for r in run)} in parallel")
     if dst == "decision":
@@ -696,7 +759,7 @@ def cmd_round(fac, args):
     folder = fac.dir / "jobs" / args.id / f"round-{n}"
     rerun, findings = [], {}
     for r in REVIEWERS:
-        if verdicts.get(r) == "N/A":
+        if verdicts.get(r) in ("N/A", None):  # N/A, or a reviewer this round never had (architecture before a domain)
             continue
         head = _read_head(folder / f"{r}.md")
         m = re.fullmatch(r"VERDICT: (PASS|CHANGES)", head[0].strip()) if head else None

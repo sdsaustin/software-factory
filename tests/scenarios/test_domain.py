@@ -248,3 +248,80 @@ def test_planner_may_write_the_domain_docs_in_the_right_passes(fx):
     snap(fx, repo, "planner", "--pass", "3")
     write(repo, {"docs/domain/glossary.md": GLOSSARY})
     assert "changed docs/domain/glossary.md" in check(fx, repo, "planner", "--pass", "3", ok=False)
+
+
+# ---- step 4: reviewer-architecture ----
+from helpers.jobs import review_files  # noqa: E402
+from helpers.projects import TEST_COMMAND  # noqa: E402
+
+CONTEXT_BILLING_IFACE = CONTEXT_BILLING + "## Published interfaces\n- Invoices API (`src/billing/api/**`): create and read invoices.\n"
+
+
+def to_review(fx, repo, files, track="quick", contexts=("billing",)):
+    fx.ctl(repo, "job-new", JOB, "--title", "Add slugify", "--item", "B1")
+    fx.ctl(repo, "set", f"jobs.{JOB}.track={track}", f"jobs.{JOB}.contexts={json.dumps(list(contexts))}")
+    fx.ctl(repo, "transition", JOB, "build", "--reason", "spec ready")
+    build_commit(fx, repo, files)
+    fx.ctl(repo, "transition", JOB, "verify", "--reason", "built")
+    r = fx.ctl(repo, "verify", JOB, "--test", TEST_COMMAND)
+    assert r.stdout.startswith("VERIFY: PASS"), r.stdout
+    return fx.ctl(repo, "transition", JOB, "review", "--reason", "verified").stdout
+
+
+def arch_state(repo):
+    return job(repo)["reviews"]["1"].get("architecture")
+
+
+def test_quick_job_inside_one_context_skips_the_architecture_reviewer(fx):
+    repo = toy_project(fx)
+    domain(repo, **{"docs/domain/contexts/billing.md": CONTEXT_BILLING_IFACE})
+    to_review(fx, repo, {"src/billing/core/invoice.py": "x = 1\n"})
+    assert arch_state(repo) == "N/A"
+
+
+def _trigger(fx, files, why, contexts=("billing",), track="quick"):
+    repo = toy_project(fx)
+    domain(repo, **{"docs/domain/contexts/billing.md": CONTEXT_BILLING_IFACE})
+    out = to_review(fx, repo, files, track=track, contexts=contexts)
+    assert arch_state(repo) == "pending", out
+    assert why in out or track == "full", out
+    return repo
+
+
+def test_trigger_shared_path(fx):
+    _trigger(fx, {"src/common/util.py": "x = 1\n"}, "shared path src/common/util.py")
+
+
+def test_trigger_forbidden_synonym(fx):
+    _trigger(fx, {"src/billing/core/a.py": "def make_bill():\n    pass\n"}, "forbidden synonym 'bill'")
+
+
+def test_trigger_job_spanning_contexts(fx):
+    _trigger(fx, {"src/billing/core/a.py": "x = 1\n"}, "declares 2 contexts", contexts=("billing", "identity"))
+
+
+def test_full_track_always_reviews_architecture_and_round_reads_its_file(fx):
+    repo = _trigger(fx, {"src/billing/core/a.py": "x = 1\n"}, "", track="full")
+    assert job(repo)["reviews"]["1"]["architecture"] == "pending"
+    review_files(repo, 1, {"security": ("PASS", 0), "code": ("PASS", 0), "ux": ("PASS", 0), "ui": ("PASS", 0)})
+    out = fx.ctl(repo, "round", JOB, check=False).stdout
+    assert "architecture: missing" in out and "NEXT: rerun reviewer-architecture" in out
+    review_files(repo, 1, {"architecture": ("CHANGES", 1)})
+    out = fx.ctl(repo, "round", JOB, check=False).stdout
+    assert "architecture: CHANGES findings=1" in out and "NEXT: spawn triager" in out
+
+
+def test_projects_without_a_domain_never_get_an_architecture_round(fx):
+    repo = toy_project(fx)
+    fx.ctl(repo, "job-new", JOB, "--title", "Add slugify")
+    fx.ctl(repo, "set", f"jobs.{JOB}.track=full")
+    fx.ctl(repo, "transition", JOB, "build", "--reason", "spec ready")
+    build_commit(fx, repo, {"a.py": "x = 1\n"})
+    fx.ctl(repo, "transition", JOB, "verify", "--reason", "built")
+    fx.ctl(repo, "verify", JOB, "--test", TEST_COMMAND)
+    fx.ctl(repo, "transition", JOB, "review", "--reason", "verified")
+    assert "architecture" not in job(repo)["reviews"]["1"]
+
+
+def test_trigger_published_interface_path(fx):
+    _trigger(fx, {"src/billing/api/routes.py": "x = 1\n"}, "implements a published interface (src/billing/api/**)")
