@@ -1611,8 +1611,14 @@ def _check_domain(fac, fails, warns, brownfield=False):
         l2 = dom / "contexts" / f"{ctx}.md"
         if not l2.exists():
             fails.append(f"context {ctx}: docs/domain/contexts/{ctx}.md is missing")
-        elif info["type"] == "core":
+        else:
             heads = _sections(l2.read_text(encoding="utf-8"), 2)
+            for tok in re.findall(r"`([^`\s]+)`", heads.get("Published interfaces", "")):
+                if "/" in tok and not tok.startswith("/") and ownership.get(ctx) and \
+                        not any(globs_overlap(tok, g) and (glob_prefix(tok) + "/").startswith(glob_prefix(g) + "/")
+                                for g in ownership[ctx]):
+                    warns.append(f"context {ctx}: published interface path `{tok}` is outside its owned paths")
+        if l2.exists() and info["type"] == "core":
             if not re.search(r"^- \S", heads.get("Aggregates and invariants", ""), re.M):
                 warns.append(f"core context {ctx} lists no aggregates or invariants")
     for ctx in ownership:

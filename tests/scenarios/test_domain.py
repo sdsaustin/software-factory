@@ -325,3 +325,13 @@ def test_projects_without_a_domain_never_get_an_architecture_round(fx):
 
 def test_trigger_published_interface_path(fx):
     _trigger(fx, {"src/billing/api/routes.py": "x = 1\n"}, "implements a published interface (src/billing/api/**)")
+
+
+def test_published_interface_path_outside_owned_paths_warns(fx):
+    repo = toy_project(fx)
+    domain(repo, **{"docs/domain/contexts/billing.md": CONTEXT_BILLING_IFACE})
+    assert "WARN" not in run(fx, repo, "--pass", "2A")
+    outside = CONTEXT_BILLING + "## Published interfaces\n- Login API (`src/identity/api/**`): sign in.\n"
+    domain(repo, **{"docs/domain/contexts/billing.md": outside})
+    out = run(fx, repo, "--pass", "2A")  # a warning, not a failure
+    assert "WARN context billing: published interface path `src/identity/api/**` is outside its owned paths" in out
