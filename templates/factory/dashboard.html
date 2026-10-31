@@ -108,7 +108,7 @@ table.ev{border-collapse:collapse;width:100%;font-size:12px}table.ev td{border-t
   <div id="inbox"></div>
   <div class="row">
     <div class="panel"><h2 class="sec">Backlog queue</h2><div id="backlog"></div></div>
-    <div class="panel"><h2 class="sec">Epics</h2><div id="epics"></div></div>
+    <div class="panel"><h2 class="sec">Epics</h2><div id="epics"></div><div id="ctxwrap" style="display:none"><h2 class="sec" style="margin-top:14px">Contexts</h2><div id="ctxs"></div></div></div>
   </div>
   <div class="panel"><h2 class="sec">Health</h2><div id="health"></div></div>
   <h2 class="sec">Jobs</h2>
@@ -128,11 +128,12 @@ function parseBacklog(md){
   const items=[];
   md.split("\n").forEach(l=>{
     const m=l.match(/^\s*-\s*\[([ xX])\]\s*(.*)$/); if(!m) return;
-    let t=m[2], key=null, epic=null, deps=[];
+    let t=m[2], key=null, epic=null, ctx=null, deps=[];
     const k=t.match(/^(B\d+)\b[:.\s-]*/i); if(k){key=k[1].toUpperCase(); t=t.slice(k[0].length)}
     const e=t.match(/\[(E\d+)\]/i); if(e){epic=e[1].toUpperCase(); t=t.replace(e[0],"").trim()}
+    const c=t.match(/\[ctx:([A-Za-z0-9_-]+)\]/i); if(c){ctx=c[1]; t=t.replace(c[0],"").trim()}
     const d=t.match(/\(?depends:\s*([^)]*)\)?/i); if(d){deps=d[1].split(/[,\s]+/).filter(Boolean).map(x=>x.toUpperCase()); t=t.replace(d[0],"").trim()}
-    items.push({key:key||"B"+(items.length+1),epic,deps,title:t,checked:m[1]!==" "});
+    items.push({key:key||"B"+(items.length+1),epic,ctx,deps,title:t,checked:m[1]!==" "});
   });
   return items;
 }
@@ -300,7 +301,7 @@ document.addEventListener("click",ev=>{
 });
 document.addEventListener("input",ev=>{const j=ev.target.dataset&&ev.target.dataset.note; if(j) UI.note[j]=ev.target.value});
 function paint(force){
-  renderRun(BOARD,ITEMS,JOBS);renderBacklog(ITEMS);renderEpics(ITEMS);render(JOBS);
+  renderRun(BOARD,ITEMS,JOBS);renderBacklog(ITEMS);renderEpics(ITEMS);renderContexts(ITEMS,JOBS);render(JOBS);
   const sig=JSON.stringify([ENTRIES,MD,PENDING,APPLIED,SERVER,!!TOKEN,VERIFY,JOBS.map(j=>j.stage)]);
   if(force||sig!==lastSig){lastSig=sig;renderInbox()}
 }
@@ -308,12 +309,19 @@ function paint(force){
 function renderBacklog(items){
   if(!items.length){$("backlog").innerHTML='<div class="empty">—</div>';return}
   $("backlog").innerHTML=items.map(i=>`<div class="item"><span class="pill ${i.status}">${i.status}</span>
-    <span class="t">${esc(i.key)} ${esc(i.title)}${i.epic?` <span class="badge">${esc(i.epic)}</span>`:""}${i.open&&i.open.length?` <span class="dep">needs ${esc(i.open.join(", "))}</span>`:""}</span></div>`).join("");
+    <span class="t">${esc(i.key)} ${esc(i.title)}${i.epic?` <span class="badge">${esc(i.epic)}</span>`:""}${i.ctx?` <span class="badge">${esc(i.ctx)}</span>`:""}${i.open&&i.open.length?` <span class="dep">needs ${esc(i.open.join(", "))}</span>`:""}</span></div>`).join("");
 }
 function renderEpics(items){
   const eps={}; items.forEach(i=>{if(!i.epic)return;(eps[i.epic]=eps[i.epic]||{n:0,d:0});eps[i.epic].n++;if(i.status==="done")eps[i.epic].d++});
   const ks=Object.keys(eps).sort((a,b)=>a.localeCompare(b,undefined,{numeric:true}));
   $("epics").innerHTML=ks.length?ks.map(k=>`<div class="ep"><span>${k}</span><div class="track"><i class="d" style="width:${100*eps[k].d/eps[k].n}%"></i></div><span>${eps[k].d}/${eps[k].n}</span></div>`).join(""):'<div class="empty">No [E&lt;n&gt;] tags in the backlog.</div>';
+}
+/* Contexts panel: only when the backlog has [ctx:<id>] tags (a project with a domain model). */
+function renderContexts(items,jobs){
+  const cs={}; items.forEach(i=>{if(!i.ctx)return;const c=(cs[i.ctx]=cs[i.ctx]||{n:0,d:0,a:0});c.n++;if(i.status==="done")c.d++;else if(i.status==="active"||i.status==="parked")c.a++});
+  const ks=Object.keys(cs).sort((a,b)=>a.localeCompare(b));
+  $("ctxwrap").style.display=ks.length?"":"none";
+  $("ctxs").innerHTML=ks.map(k=>`<div class="ep"><span style="width:90px;overflow:hidden;text-overflow:ellipsis" title="${esc(k)}">${esc(k)}</span><div class="track"><i class="d" style="width:${100*cs[k].d/cs[k].n}%"></i></div><span>${cs[k].d}/${cs[k].n}${cs[k].a?` · ${cs[k].a} active`:""}</span></div>`).join("");
 }
 async function load(force){
   try{
@@ -342,7 +350,7 @@ function card(j){
     `<div class="round">Round ${esc(n)}: ${REV.filter(k=>k in r).map(k=>`<span class="chip ${esc(r[k]||"")}">${k}: ${esc(r[k]||"pending")}</span>`).join("")}${r.triage?`<span class="chip">triage: ${esc(r.triage)}</span>`:""}</div>`).join("");
   return `<div class="card ${j.stage==="needs-human"?"nh":""}" onclick='openJob(${JSON.stringify(j.id)})'>
     <b>${esc(j.id)}</b>${esc(j.title||"")}<div><span class="badge">${esc(j.track||"?")}</span> ${j.decision?`<span class="badge">${esc(j.decision)}</span>`:""}
-    ${j.item?`<span class="badge">${esc(j.item)}</span>`:""}${j.assumptions?`<span class="badge warn">${esc(j.assumptions)} assumption${j.assumptions>1?"s":""}</span>`:""}${(j.execution||{}).blocked?`<span class="badge warn">blocked</span>`:""}</div>${j.parked_reason?`<div class="round">${esc(j.parked_reason)}</div>`:""}${rounds}</div>`;
+    ${j.item?`<span class="badge">${esc(j.item)}</span>`:""}${(j.contexts||[]).map(c=>` <span class="badge">${esc(c)}</span>`).join("")}${j.assumptions?`<span class="badge warn">${esc(j.assumptions)} assumption${j.assumptions>1?"s":""}</span>`:""}${(j.execution||{}).blocked?`<span class="badge warn">blocked</span>`:""}</div>${j.parked_reason?`<div class="round">${esc(j.parked_reason)}</div>`:""}${rounds}</div>`;
 }
 /* Markdown for the file viewer. Agent-written text is untrusted and this page holds a token that can queue merges,
    so nothing is passed through as HTML: every piece of text is escaped first, and only the constructs below are

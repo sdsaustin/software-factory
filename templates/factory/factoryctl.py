@@ -1972,6 +1972,52 @@ def cmd_migrate(fac, args):
     return 0
 
 
+
+REVIEW_DRIFT_FILES = 10
+UNOWNED_EXEMPT = re.compile(r"(^|/)\.[^/]+|^[^/]+$")  # dotfiles and files at the project root
+
+
+def domain_health(fac):
+    """Read-only freshness report for docs/domain/: [(level, what, fix)]. Never fails a project."""
+    out, fails, warns = [], [], []
+    _check_domain(fac, fails, warns)
+    for f in fails:
+        out.append(("WARN", f"domain model: {f}", "fix the file, or re-run /software-factory:factory plan or document"))
+    ownership, provisional, bad = load_ownership_full(fac)
+    if bad:
+        return out
+    tracked = [n for n in fac.git("ls-files", check=False).stdout.split("\n") if n]
+    for ctx, globs in sorted(ownership.items()):
+        if ctx in provisional:
+            continue  # proposed paths that no job has confirmed yet are expected to be missing
+        for g in globs:
+            if not any(fnmatch.fnmatch(n, g) or n.startswith(g.rstrip("/*") + "/") for n in tracked):
+                out.append(("WARN", f"{ctx} owns `{g}` but no tracked file matches it",
+                            "correct docs/domain/ownership.json, or list the context under `_provisional`"))
+    code = [n for n in tracked if not n.startswith(STATE_PATHS) and not UNOWNED_EXEMPT.search(n)
+            and not SECONDARY.search(n) and path_owner(ownership, n) is None]
+    if code:
+        out.append(("WARN", f"{len(code)} tracked file(s) belong to no context, e.g. {', '.join(code[:4])}",
+                    "add their paths to a context (or `_shared`) in docs/domain/ownership.json"))
+    for f in sorted((domain_dir(fac) / "contexts").glob("*.md")):
+        ctx = f.stem
+        m = re.search(r"^Reviewed-at:\s*([0-9a-f]{7,40})\s*$", f.read_text(encoding="utf-8"), re.M)
+        if not m or not ownership.get(ctx):
+            continue
+        if not fac.rev(m.group(1)):
+            out.append(("WARN", f"{ctx}: Reviewed-at {m.group(1)} is not a commit in this repository",
+                        f"re-read docs/domain/contexts/{ctx}.md and update its Reviewed-at line"))
+            continue
+        pathspecs = [g.rstrip("/*") or "." for g in ownership[ctx]]
+        changed = [n for n in fac.git("diff", "--name-only", f"{m.group(1)}..HEAD", "--", *pathspecs,
+                                      check=False).stdout.split("\n") if n]
+        if len(changed) >= REVIEW_DRIFT_FILES:
+            out.append(("WARN", f"{ctx}: {len(changed)} files it owns changed since its context file was reviewed "
+                                f"({m.group(1)[:8]})",
+                        f"re-read docs/domain/contexts/{ctx}.md against the code and update its Reviewed-at line"))
+    return out
+
+
 def cmd_doctor(fac, args):
     findings = []
 
@@ -2085,6 +2131,9 @@ def cmd_doctor(fac, args):
         pending = [a for a in queued if isinstance(a, dict) and a.get("id") not in applied]
         if pending:
             add("WARN", f"{len(pending)} dashboard action(s) pending", "/software-factory:factory apply")
+        if has_domain(fac):
+            for level, what, fix in domain_health(fac):
+                add(level, what, fix)
         claude_md = fac.root / "CLAUDE.md"
         text = claude_md.read_text(encoding="utf-8") if claude_md.exists() else ""
         m = re.search(r"Test command:\s*(.+)", text)

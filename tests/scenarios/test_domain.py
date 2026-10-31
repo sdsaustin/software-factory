@@ -335,3 +335,61 @@ def test_published_interface_path_outside_owned_paths_warns(fx):
     domain(repo, **{"docs/domain/contexts/billing.md": outside})
     out = run(fx, repo, "--pass", "2A")  # a warning, not a failure
     assert "WARN context billing: published interface path `src/identity/api/**` is outside its owned paths" in out
+
+
+# ---- step 5: doctor freshness ----
+
+def commit_files(fx, repo, files, msg="code"):
+    for rel, text in files.items():
+        p = repo / rel
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text(text)
+    fx.git(repo, "add", *files)
+    fx.git(repo, "commit", "-q", "-m", msg)
+
+
+def doctor(fx, repo):
+    return fx.ctl(repo, "doctor", check=False).stdout
+
+
+def test_doctor_is_quiet_about_a_healthy_domain(fx):
+    repo = toy_project(fx)
+    commit_files(fx, repo, {"src/billing/a.py": "x = 1\n", "src/identity/b.py": "x = 1\n", "src/common/c.py": "x = 1\n"})
+    domain(repo)
+    out = doctor(fx, repo)
+    assert "domain model" not in out and "belong to no context" not in out and "owns `" not in out
+
+
+def test_doctor_reports_unowned_code_missing_paths_and_invalid_files(fx):
+    repo = toy_project(fx)
+    commit_files(fx, repo, {"src/billing/a.py": "x = 1\n", "lib/orphan.py": "x = 1\n", "tests/t.py": "x = 1\n"})
+    domain(repo)
+    out = doctor(fx, repo)
+    assert "identity owns `src/identity/**` but no tracked file matches it" in out
+    assert "belong to no context, e.g. lib/orphan.py" in out and "tests/t.py" not in out
+    # proposed (provisional) paths are expected to be missing
+    domain(repo, **{"docs/domain/ownership.json": json.dumps(dict(OWNERSHIP, _provisional=["identity"]))})
+    assert "identity owns" not in doctor(fx, repo)
+    domain(repo, **{"docs/domain/glossary.md": GLOSSARY + "- not a term\n"})
+    assert "domain model: glossary line must be" in doctor(fx, repo)
+
+
+def test_doctor_reports_context_files_that_fell_behind_the_code(fx):
+    repo = toy_project(fx)
+    commit_files(fx, repo, {"src/billing/a.py": "x = 1\n", "src/identity/b.py": "x = 1\n"})
+    sha = fx.git(repo, "rev-parse", "--short", "HEAD")
+    domain(repo, **{"docs/domain/contexts/billing.md": CONTEXT_BILLING + f"Reviewed-at: {sha}\n"})
+    assert "since its context file was reviewed" not in doctor(fx, repo)
+    commit_files(fx, repo, {f"src/billing/f{i}.py": "x = 1\n" for i in range(10)})
+    assert f"billing: 10 files it owns changed since its context file was reviewed ({sha[:8]})" in doctor(fx, repo)
+    domain(repo, **{"docs/domain/contexts/billing.md": CONTEXT_BILLING + "Reviewed-at: deadbeef\n"})
+    assert "Reviewed-at deadbeef is not a commit" in doctor(fx, repo)
+
+
+def test_doctor_domain_checks_are_read_only(fx):
+    from helpers import tree_digest
+    repo = toy_project(fx)
+    domain(repo)
+    before = tree_digest(repo, ["factory", "docs", "CLAUDE.md"])
+    doctor(fx, repo)
+    assert tree_digest(repo, ["factory", "docs", "CLAUDE.md"]) == before
