@@ -22,7 +22,7 @@ import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 
-VERSION = "2.3.0"           # plugin version this copy shipped with
+VERSION = "2.4.0"           # plugin version this copy shipped with
 BOARD_VERSION = 2
 CONFIG_VERSION = 1
 
