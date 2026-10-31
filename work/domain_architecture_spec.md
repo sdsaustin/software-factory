@@ -1,6 +1,6 @@
 # Domain Architecture Specification (L1 / L2 + Bounded Contexts)
 
-Status: Proposed
+Status: Implemented (v2.4.0, v2.4.1)
 Applies to: `plan` (new product), `plan` feature mode, `document` (brownfield), job specs, scope enforcement, review
 Origin: critic review of the factory against DDD strategic design. C4 is a non-goal as vocabulary.
 
@@ -22,7 +22,7 @@ Existing `architecture.md` keeps technology, quality attributes, run/test comman
 ### New product
 
 - **PASS 2a Domain** (after Clarify approval, before Architecture): planner writes L1, L2 files, glossary, ownership map (paths are proposed targets). Human gate shows: contexts with subdomain type, context map, glossary conflicts, contexts with no owner of a Must capability.
-- PASS 2 Architecture then must place every container in a context; ADs carry `Context:` (a context id or `global`).
+- PASS 2 Architecture then must place every container in a context; ADs carry `Bounded-context:` (a context id, `_platform` or `global`; `Context:` is already used for narrative in decision records).
 - PASS 3: every epic names exactly one owning context (`Context:` line); every backlog line carries `[ctx:<id>]`. Work spanning contexts is split into one item per context plus an explicit integration item that names the relationship from the map.
 
 ### Feature mode
@@ -40,7 +40,7 @@ Existing `architecture.md` keeps technology, quality attributes, run/test comman
 - Spec template gains `Contexts:` (the contexts the job may change, normally one) and `Glossary terms used`. Spec-writer derives them from the backlog tag and ownership map; a job with more than one context must cite the integration relationship.
 - `factoryctl scope-check` additionally fails a builder diff that touches paths owned by a context not listed in the job's `contexts`. Unowned paths are allowed but reported. A context whose globs are still provisional is reported, not failed (Decision 2). Shared/generated paths are listed under `"_shared"` in the ownership map.
 - Board job entry gains `contexts: []`; `job_errors` validates ids against `ownership.json`.
-- **New agent `reviewer-architecture`**: checks the diff against the context map (dependency direction, access only through published interfaces, no foreign-table writes), glossary terms and forbidden synonyms, and invariants of touched aggregates. Writes `round-N/architecture.md` with the usual `VERDICT:` / `FINDINGS:` header. Always runs on `standard` and `full`; on `light` it runs only when the diff touches a published interface, a `_shared` path or a glossary term (Decision 3). Triager treats it like the others.
+- **New agent `reviewer-architecture`**: checks the diff against the context map (dependency direction, access only through published interfaces, no foreign-table writes), glossary terms and forbidden synonyms, and invariants of touched aggregates. Writes `round-N/architecture.md` with the usual `VERDICT:` / `FINDINGS:` header. Always runs on the `full` track; on `quick` it runs only when `factoryctl` finds a trigger: a published-interface path changed, a `_shared` path changed, `docs/domain/` changed, a forbidden glossary synonym was added, or the job does not have exactly one context (Decision 3). Triager treats it like the others.
 
 ## 5. Gates (`factoryctl plan-check`)
 
@@ -83,4 +83,4 @@ Fail when: a context has no purpose, subdomain type or owner path; a relationshi
 
 1. **Platform work uses a `_platform` pseudo-context.** Every epic names exactly one owning context; enablers (scaffold, CI, auth plumbing, logging, shared UI kit) use `Context: _platform`. `plan-check` fails when `_platform` exceeds about 20% of backlog items. `_platform` code may not hold domain logic and may not import from domain contexts. Multi-context epics are not allowed.
 2. **Ownership globs are proposed, then confirmed.** The planner proposes `ownership.json` at plan time and the scaffold job confirms or corrects it. A context's enforcement is *provisional* (scope-check reports only) until its globs are confirmed, then it becomes a hard failure. In brownfield the globs come from real paths and are confirmed at the `document` gate.
-3. **The architecture reviewer runs conditionally on `light` jobs.** It always runs on `standard` and `full`. On `light`, `factoryctl` runs it only if the diff touches a published interface, a `_shared` path, or a glossary term; the check is deterministic and costs no agent run when it does not trigger.
+3. **The architecture reviewer runs conditionally on `quick` jobs.** It always runs on `full`. On `quick`, `factoryctl` runs it only if one of the triggers in section 4 fires; the check is deterministic and costs no agent run when it does not trigger.
