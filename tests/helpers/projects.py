@@ -96,3 +96,33 @@ def old_project(fx):
     fx.git(repo, "add", "-A")
     fx.git(repo, "commit", "-q", "-m", "fixture: project set up by an old plugin")
     return repo
+
+
+def domain_project(fx):
+    """toy_project with a domain model: context `text` owns textkit.py (a published interface) and its test; context
+    `reports` is a proposed, still provisional, context. B1 is tagged for `text`."""
+    import json
+    repo = toy_project(fx)
+    files = {
+        "docs/domain/l1-context.md": "# L1\n## Actors and external systems\n- Developer (person): calls the library.\n\n"
+                                     "## Contexts\n- text: core - Text helpers other code builds on\n"
+                                     "- reports: supporting - Formatting of results for people\n\n"
+                                     "## Relationships\n- reports -> text: customer-supplier\n",
+        "docs/domain/contexts/text.md": "# text\nReviewed-at: 0000000\n## Purpose\nPure text helpers.\n"
+                                        "## Aggregates and invariants\n- Slug: lowercase words joined by single hyphens, never empty edges.\n"
+                                        "## Published interfaces\n- Text helpers (`textkit.py`): word_count, slugify.\n",
+        "docs/domain/contexts/reports.md": "# reports\n## Purpose\nPresent results.\n## Aggregates and invariants\n",
+        "docs/domain/glossary.md": "# Glossary\n- **Slug** (text): a lowercase, hyphen-joined form of a title. Avoid: permalink.\n"
+                                   "- **Report** (reports): a formatted result for a reader.\n",
+        "docs/domain/ownership.json": json.dumps({"text": ["textkit.py", "test_textkit.py"], "reports": ["reports/**"],
+                                                  "_provisional": ["reports"]}),
+    }
+    for rel, text in files.items():
+        p = repo / rel
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text(text)
+    backlog = repo / "factory" / "backlog.md"
+    backlog.write_text(backlog.read_text().replace("- [ ] B1 Add slugify", "- [ ] B1 [E1] [ctx:text] Add slugify"))
+    fx.git(repo, "add", "-A")
+    fx.git(repo, "commit", "-q", "-m", "fixture: domain model")
+    return repo

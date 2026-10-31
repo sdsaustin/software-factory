@@ -393,3 +393,15 @@ def test_doctor_domain_checks_are_read_only(fx):
     before = tree_digest(repo, ["factory", "docs", "CLAUDE.md"])
     doctor(fx, repo)
     assert tree_digest(repo, ["factory", "docs", "CLAUDE.md"]) == before
+
+
+def test_root_level_source_files_count_as_published_interface_paths(fx):
+    repo = toy_project(fx)
+    iface = CONTEXT_BILLING + "## Published interfaces\n- Core (`app.py`): entry point.\n- Route `POST /x` and `Invoice.total`.\n"
+    domain(repo, **{"docs/domain/contexts/billing.md": iface,
+                    "docs/domain/ownership.json": json.dumps(dict(OWNERSHIP, billing=["src/billing/**", "app.py"]))})
+    spec = importlib.util.spec_from_file_location("factoryctl", repo / "factory" / "factoryctl.py")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    fac = mod.Factory(repo / "factory")
+    assert mod.published_interface_globs(fac) == ["app.py"]

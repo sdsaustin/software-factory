@@ -520,14 +520,20 @@ def architecture_triggers(fac, board, job):
     return reasons
 
 
+SOURCE_EXT = r"py|js|ts|tsx|jsx|go|rb|java|rs|php|cs|kt|swift|c|cc|cpp|h"
+
+
+def is_path_token(tok):
+    """A backticked token that names code: `src/billing/api/**`, or a root file such as `textkit.py`."""
+    return not tok.startswith("/") and ("/" in tok or bool(re.fullmatch(rf"[\w.-]+\.({SOURCE_EXT})", tok)))
+
+
 def published_interface_globs(fac):
     """Backticked path globs on lines of each `docs/domain/contexts/*.md` `## Published interfaces` section."""
     out = []
     for f in sorted((domain_dir(fac) / "contexts").glob("*.md")):
         body = _sections(f.read_text(encoding="utf-8"), 2).get("Published interfaces", "")
-        for tok in re.findall(r"`([^`\s]+)`", body):
-            if "/" in tok and not tok.startswith(("/", "GET ", "POST ")):
-                out.append(tok)
+        out += [t for t in re.findall(r"`([^`\s]+)`", body) if is_path_token(t)]
     return out
 
 
@@ -1614,7 +1620,7 @@ def _check_domain(fac, fails, warns, brownfield=False):
         else:
             heads = _sections(l2.read_text(encoding="utf-8"), 2)
             for tok in re.findall(r"`([^`\s]+)`", heads.get("Published interfaces", "")):
-                if "/" in tok and not tok.startswith("/") and ownership.get(ctx) and \
+                if is_path_token(tok) and ownership.get(ctx) and \
                         not any(globs_overlap(tok, g) and (glob_prefix(tok) + "/").startswith(glob_prefix(g) + "/")
                                 for g in ownership[ctx]):
                     warns.append(f"context {ctx}: published interface path `{tok}` is outside its owned paths")
