@@ -123,4 +123,4 @@ def test_missing_documents_and_bad_pass(fx):
     out = run(fx, repo, "--pass", "2", ok=False)
     assert "docs/architecture.md is missing" in out and "docs/decisions.md is missing" in out
     r = fx.ctl(repo, "plan-check", "--pass", "1", check=False)
-    assert r.returncode == 1 and "pass 2, 3 or DOC" in r.stderr
+    assert r.returncode == 1 and "pass 2A, 2, 3 or DOC" in r.stderr

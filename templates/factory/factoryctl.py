@@ -10,6 +10,7 @@ Run from the project root:  python3 factory/factoryctl.py <command> ...   (`--he
 Exit codes: 0 ok, 1 refused or FAIL, 2 usage error, 3 could not run (tool or environment problem), 4 merge conflict.
 """
 import argparse
+import fnmatch
 import hashlib
 import json
 import os
@@ -44,11 +45,14 @@ REVIEW_VERDICTS = {"PASS", "CHANGES", "pending", "N/A"}
 TRIAGE_VERDICTS = {"CLEAN", "PATCH", "DECISION", "pending"}
 DECISIONS = {None, "APPROVE", "APPROVE (human)", "ESCALATE"}
 STATE_PATHS = ("factory/", "docs/", "CLAUDE.md")
+PLATFORM_ID = "_platform"
+CTX_ID_RE = r"_platform|[a-z][a-z0-9-]*"
 # Written while an agent runs by something other than the agent (the dashboard server); never an agent's write.
 SCOPE_EXEMPT = ("factory/actions.jsonl",)
 ROLES = ["spec-writer", "builder", "reviewers", "triager", "approver", "planner", "retro"]
 PLANNER_PASSES = {
     "1": ["docs/vision.md", "docs/product-brief.md", "docs/open-questions.md"],
+    "2A": ["docs/open-questions.md"],
     "2": ["docs/architecture.md", "docs/decisions.md", "docs/open-questions.md"],
     "3": ["docs/epics.md", "factory/backlog.md", "docs/claude-md-proposal.md", "docs/open-questions.md"],
     "DOC": ["docs/architecture.md", "docs/decisions.md", "docs/open-questions.md", "docs/claude-md-proposal.md"],
@@ -56,6 +60,8 @@ PLANNER_PASSES = {
     "FEATURE 2": ["docs/decisions.md", "docs/architecture.md"],
     "FEATURE 3": ["docs/epics.md", "factory/backlog.md"],
 }
+# Passes that may also write anywhere under docs/domain/ (L1, L2, glossary, ownership).
+PLANNER_DOMAIN_PASSES = ("2A", "DOC", "FEATURE 2")
 TAIL_LINES = 40
 DIFF_LIMIT = 3000
 
@@ -214,7 +220,7 @@ def new_job(job_id, title, item=None, epic=None):
     return {
         "id": job_id, "title": title, "track": None, "extra_reviewers": [], "skip_reviewers": [],
         "stage": "spec", "round": 0, "reviews": {}, "decision": None, "branch": f"factory/{job_id}",
-        "updated": now(), "item": item, "epic": epic, "parked_reason": None, "assumptions": 0,
+        "updated": now(), "item": item, "epic": epic, "parked_reason": None, "assumptions": 0, "contexts": [],
         "workspace": {"kind": "legacy-checkout", "path": None, "base_commit": None, "created_at": None},
         "execution": {"attempt": 0, "started_at": None, "completed_at": None, "last_error": None},
         "evidence": {"head_commit": None, "verified_commit": None, "verified_at": None},
@@ -252,6 +258,10 @@ def job_errors(job):
             e.append(f"{where}: missing {key}")
         elif not ok(job[key]):
             e.append(f"{where}: bad {key}: {job[key]!r}" + (f" (stages: {', '.join(STAGES)})" if key == "stage" else ""))
+    ctxs = job.get("contexts", [])  # optional: boards from before domain contexts have none
+    if not (isinstance(ctxs, list) and all(isinstance(c, str) and re.fullmatch(CTX_ID_RE, c) for c in ctxs)
+            and len(set(ctxs)) == len(ctxs)):
+        e.append(f"{where}: bad contexts: {ctxs!r} (a list of unique context ids, or {PLATFORM_ID})")
     reviews = job.get("reviews")
     if not isinstance(reviews, dict):
         e.append(f"{where}: reviews must be an object")
@@ -325,8 +335,8 @@ def board_errors(board):
         else:
             if plan.get("mode", "product") not in ("product", "feature"):
                 e.append("plan.mode must be product or feature")
-            if plan.get("pass") not in (1, 2, 3, None):
-                e.append("plan.pass must be 1, 2 or 3")
+            if plan.get("pass") not in (1, "2A", 2, 3, None):
+                e.append("plan.pass must be 1, 2A, 2 or 3")
             if plan.get("status") not in ("running", "awaiting-questions", "awaiting-approval", "approved", "done"):
                 e.append("plan.status must be running, awaiting-questions, awaiting-approval, approved or done")
     if board.get("document") not in (None, "running", "awaiting-approval", "done"):
@@ -414,6 +424,19 @@ def docs_files(fac, job_id):
     if not m or m.group(1).strip().lower().startswith("none"):
         return set()
     return {p.strip("` ") for p in re.split(r"[,\s]+", m.group(1)) if p.strip("` ")}
+
+
+def spec_contexts(fac, job_id):
+    """Context ids on the spec's `Contexts:` line, or None when the spec has no such line."""
+    spec = fac.dir / "jobs" / job_id / "spec.md"
+    if not spec.exists():
+        return None
+    m = re.search(r"^Contexts:[ \t]*(.+)$", spec.read_text(encoding="utf-8"), re.M)
+    if not m:
+        return None
+    if m.group(1).strip().lower().startswith("none"):
+        return []
+    return [c for c in re.split(r"[,\s]+", m.group(1).strip("` ")) if c]
 
 
 def code_changes(fac, job_id, since, until):
@@ -511,7 +534,7 @@ def cmd_job_new(fac, args):
 SETTABLE_TOP = {
     "default_branch", "plugin_version", "run", "retro", "plan", "features", "document",
 }
-SETTABLE_JOB = {"title", "track", "extra_reviewers", "skip_reviewers", "assumptions", "decision", "item", "epic",
+SETTABLE_JOB = {"contexts", "title", "track", "extra_reviewers", "skip_reviewers", "assumptions", "decision", "item", "epic",
                 "parked_reason"}
 
 
@@ -553,8 +576,20 @@ def cmd_set(fac, args):
                 raise Refused(f"cannot add {value!r} to {m.group(1)}")
         else:
             target[key] = value
+    known = None
     for jid in touched:
-        find_job(board, jid)["updated"] = now()
+        j = find_job(board, jid)
+        j["updated"] = now()
+        errs = [x for x in job_errors(j) if "bad contexts" in x]
+        if errs:
+            raise Refused(errs[0])
+        if j.get("contexts") and has_domain(fac):
+            if known is None:
+                known = set(parse_l1((domain_dir(fac) / "l1-context.md").read_text(encoding="utf-8"))[0]) | {PLATFORM}
+            unknown = [c for c in j["contexts"] if c not in known]
+            if unknown:
+                raise Refused(f"{jid}: unknown context {', '.join(unknown)}; docs/domain/l1-context.md has "
+                              f"{', '.join(sorted(known))}")
     fac.save_board(board)
     print("set: " + "; ".join(args.assignments))
     return 0
@@ -907,10 +942,12 @@ def scope_rules(fac, board, role, job, args):
         return {"factory/retro-proposal.md"}, ()
     key = ("FEATURE " if args.feature else "") + str(args.pass_ or "").upper()
     if key not in PLANNER_PASSES:
-        raise Refused("planner needs --pass 1|2|3|DOC (plus --feature <slug> for a feature plan)")
+        raise Refused("planner needs --pass 1|2A|2|3|DOC (plus --feature <slug> for a feature plan)")
     if args.feature and not re.fullmatch(r"[a-z0-9][a-z0-9-]{0,60}", args.feature):
         raise Refused("--feature must be the plan's kebab-case slug")
     prefixes = (f"docs/features/{args.feature}/",) if args.feature else ()
+    if key in PLANNER_DOMAIN_PASSES:
+        prefixes += ("docs/domain/",)
     return set(PLANNER_PASSES[key]), prefixes
 
 
@@ -997,11 +1034,16 @@ def cmd_scope_check(fac, args):
             if n.startswith(STATE_PATHS) and n not in allowed_docs:
                 problems.append(f"{job['branch']} changes {n} (factory state, docs and CLAUDE.md stay off job "
                                 f"branches unless named on the spec's Docs files: line)")
+    notes = []
+    if own and own in after["refs"] and board.get("default_branch") and has_domain(fac):
+        context_scope(fac, job, board["default_branch"], problems, notes)
     label = args.role + (f" on {job['id']}" if job else "")
     if not problems:
         path.unlink()
         fac.append_event({"kind": "scope", "job": job["id"] if job else None, "role": args.role, "result": "ok"}, cfg)
         print(f"scope: ok ({label})")
+        for n in notes:
+            print(f"  note: {n}")
         return 0
     summary = clean(f"{args.role}: " + "; ".join(problems), 300)
     if job:
@@ -1020,6 +1062,36 @@ def cmd_scope_check(fac, args):
     else:
         print("NEXT: stop and show the human these changes")
     return 1
+
+
+def context_scope(fac, job, default, problems, notes):
+    """A builder's branch may change only paths owned by the job's contexts (plus `_shared` and unowned paths).
+    Violations in a provisional context (globs not yet confirmed by a job) are notes, not failures."""
+    ownership, provisional, bad = load_ownership_full(fac)
+    if bad:
+        problems.extend(f"domain: {b}" for b in bad)
+        return
+    declared = job.get("contexts") or []
+    spec = spec_contexts(fac, job["id"])
+    if spec is not None and sorted(spec) != sorted(declared):
+        problems.append(f"the board says contexts {declared or 'none'} but the spec's Contexts: line says "
+                        f"{spec or 'none'} (set jobs.{job['id']}.contexts to match)")
+    changed = [n for n in fac.git("diff", "--name-only", f"{default}...{job['branch']}").stdout.split("\n")
+               if n and not n.startswith(STATE_PATHS)]
+    unowned, foreign = [], {}
+    for n in changed:
+        owner = path_owner(ownership, n)
+        if owner is None:
+            unowned.append(n)
+        elif owner != SHARED and owner not in declared:
+            foreign.setdefault(owner, []).append(n)
+    for owner, files in sorted(foreign.items()):
+        msg = (f"{job['branch']} changes {', '.join(files[:4])} owned by context {owner}, "
+               f"but the job declares {declared or 'no contexts'}")
+        (notes if owner in provisional else problems).append(msg + (" (provisional ownership: reported only)"
+                                                                   if owner in provisional else ""))
+    if unowned:
+        notes.append(f"not owned by any context: {', '.join(unowned[:6])}" + (" ..." if len(unowned) > 6 else ""))
 
 
 def worktree_root(fac, cfg):
@@ -1282,7 +1354,7 @@ def _check_commands(text, fails, allow_none=False):
             fails.append(f"`- {name}:` must be a command in backticks or `none (<why>)`")
 
 
-def _check_decisions(text, fails, only_feature=None, doc=False):
+def _check_decisions(text, fails, only_feature=None, doc=False, contexts=None):
     blocks = re.split(r"^(?=## AD\d+)", text, flags=re.M)
     records = [b for b in blocks if re.match(r"## AD\d+", b)]
     if only_feature:
@@ -1298,6 +1370,12 @@ def _check_decisions(text, fails, only_feature=None, doc=False):
             fails.append(f"{name}: no `Status: accepted|assumed|inferred` line")
         elif status.group(1).lower() == "assumed":
             assumed.append(f"{name}{ad.group(2).rstrip()}")
+        if contexts:
+            bc = re.search(r"^Bounded-context:\s*(\S+)\s*$", b, re.M)
+            if not bc:
+                fails.append(f"{name}: no `Bounded-context: <context>|global` line")
+            elif bc.group(1) not in set(contexts) | {PLATFORM, "global"}:
+                fails.append(f"{name}: bounded context {bc.group(1)!r} is not in l1-context.md (or {PLATFORM}, global)")
         if not re.search(r"\bConsequences\b", b):
             fails.append(f"{name}: no Consequences")
         if not re.search(r"\bContext\b", b) and not (doc and re.search(r"\bEvidence\b", b)):
@@ -1323,13 +1401,255 @@ def _check_backlog(fac, fails):
                 fails.append(f"{item['id']} depends on {d}, which is not earlier in the backlog")
 
 
+# ---- Domain architecture: L1 context map, L2 context files, glossary, ownership (work/domain_architecture_spec.md) ----
+
+SUBDOMAINS = ("core", "supporting", "generic")
+RELATIONSHIPS = ("customer-supplier", "conformist", "acl", "shared-kernel", "published-language", "partnership")
+PLATFORM = "_platform"
+SHARED = "_shared"
+PLATFORM_CAP = 0.20
+CTX_ID = r"[a-z][a-z0-9-]*"
+
+
+def domain_dir(fac):
+    return fac.root / "docs" / "domain"
+
+
+def has_domain(fac):
+    return (domain_dir(fac) / "l1-context.md").exists()
+
+
+def parse_l1(text):
+    """({ctx id: {"type", "purpose"}}, [(downstream, upstream, relationship)], [problems]).
+    Contexts: `- <id>: core|supporting|generic - <purpose>` under `## Contexts`.
+    Relationships: `- <downstream> -> <upstream>: <type>` under `## Relationships`."""
+    problems, contexts, rels = [], {}, []
+    secs = _sections(text, 2)
+    if not re.search(r"\S", secs.get("Actors and external systems", "")):
+        problems.append("l1-context.md has no `## Actors and external systems` section")
+    body = secs.get("Contexts")
+    if body is None:
+        problems.append("l1-context.md has no `## Contexts` section")
+        body = ""
+    for line in body.splitlines():
+        if not line.startswith("- "):
+            continue
+        m = re.match(rf"- ({CTX_ID}):\s*(\w+)\s*(?:[-\u2013\u2014]\s*(.*))?$", line)
+        if not m:
+            problems.append(f"context line must be `- <id>: core|supporting|generic - <purpose>`: {line[:60]!r}")
+            continue
+        cid, kind, purpose = m.group(1), m.group(2).lower(), (m.group(3) or "").strip()
+        if kind not in SUBDOMAINS:
+            problems.append(f"context {cid}: subdomain type must be core, supporting or generic, not {kind!r}")
+        if not purpose:
+            problems.append(f"context {cid}: no purpose")
+        if cid in contexts:
+            problems.append(f"context {cid} is listed twice")
+        contexts[cid] = {"type": kind, "purpose": purpose}
+    if not contexts and body.strip():
+        problems.append("`## Contexts` lists no contexts")
+    for line in secs.get("Relationships", "").splitlines():
+        if not line.startswith("- "):
+            continue
+        m = re.match(rf"- ({CTX_ID})\s*->\s*({CTX_ID}):\s*([A-Za-z-]+)", line)
+        if not m:
+            problems.append(f"relationship line must be `- <downstream> -> <upstream>: <type>`: {line[:60]!r}")
+            continue
+        a, b, kind = m.group(1), m.group(2), m.group(3).lower()
+        if kind not in RELATIONSHIPS:
+            problems.append(f"relationship {a} -> {b}: type must be one of {', '.join(RELATIONSHIPS)}, not {kind!r}")
+        for c in (a, b):
+            if c not in contexts:
+                problems.append(f"relationship {a} -> {b} names {c}, which is not a context")
+        rels.append((a, b, kind))
+    return contexts, rels, problems
+
+
+def load_ownership(fac):
+    """({ctx or _shared: [globs]}, [problems]). Read-only parser shared by plan-check, scope-check and doctor."""
+    out, _prov, problems = load_ownership_full(fac)
+    return out, problems
+
+
+def load_ownership_full(fac):
+    """(ownership, provisional context ids, problems). `_provisional` lists contexts whose globs the planner
+    proposed but no job has confirmed yet: scope-check reports their violations instead of failing the job."""
+    path = domain_dir(fac) / "ownership.json"
+    if not path.exists():
+        return {}, set(), ["docs/domain/ownership.json is missing"]
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except ValueError as e:
+        return {}, set(), [f"docs/domain/ownership.json is not valid JSON: {e}"]
+    if not isinstance(data, dict):
+        return {}, set(), ["docs/domain/ownership.json must be an object of {context: [globs]}"]
+    problems, out, prov = [], {}, set()
+    raw_prov = data.pop("_provisional", [])
+    if isinstance(raw_prov, list) and all(isinstance(c, str) for c in raw_prov):
+        prov = set(raw_prov)
+    else:
+        problems.append("ownership.json: `_provisional` must be a list of context ids")
+    for ctx, globs in data.items():
+        if not isinstance(globs, list) or not all(isinstance(g, str) and g.strip() for g in globs):
+            problems.append(f"ownership.json: {ctx!r} must be a list of non-empty path globs")
+            continue
+        bad = [g for g in globs if g.startswith("/") or ".." in g.split("/")]
+        if bad:
+            problems.append(f"ownership.json: {ctx!r} has paths outside the project: {', '.join(bad)}")
+            continue
+        out[ctx] = [g.strip() for g in globs]
+    for c in sorted(prov - set(out)):
+        problems.append(f"ownership.json: `_provisional` names {c!r}, which owns no paths")
+    return out, prov, problems
+
+
+def glob_prefix(glob):
+    """The static directory part of a glob: `src/billing/**` -> `src/billing`."""
+    parts = []
+    for part in glob.strip("/").split("/"):
+        if re.search(r"[*?\[]", part):
+            break
+        parts.append(part)
+    return "/".join(parts)
+
+
+def globs_overlap(a, b):
+    pa, pb = glob_prefix(a), glob_prefix(b)
+    return pa == pb or pa == "" or pb == "" or pa.startswith(pb + "/") or pb.startswith(pa + "/")
+
+
+def path_owner(ownership, rel):
+    """Context owning a project-relative path: the longest matching static prefix, or None."""
+    best, best_len = None, -1
+    for ctx, globs in ownership.items():
+        for g in globs:
+            if fnmatch.fnmatch(rel, g) or fnmatch.fnmatch(rel, g.rstrip("/") + "/*") or \
+                    (g.endswith("/**") and rel.startswith(g[:-2])) or rel.startswith(g.rstrip("/") + "/"):
+                n = len(glob_prefix(g))
+                if n > best_len:
+                    best, best_len = ctx, n
+    return best
+
+
+def _check_domain(fac, fails, warns, brownfield=False):
+    dom = domain_dir(fac)
+    try:
+        l1_text = (dom / "l1-context.md").read_text(encoding="utf-8")
+    except FileNotFoundError:
+        fails.append("docs/domain/l1-context.md is missing")
+        return {}
+    contexts, _rels, problems = parse_l1(l1_text)
+    fails.extend(problems)
+    ownership, problems = load_ownership(fac)
+    fails.extend(problems)
+    for ctx, info in contexts.items():
+        if not ownership.get(ctx):
+            fails.append(f"context {ctx}: no owned paths in ownership.json")
+        l2 = dom / "contexts" / f"{ctx}.md"
+        if not l2.exists():
+            fails.append(f"context {ctx}: docs/domain/contexts/{ctx}.md is missing")
+        elif info["type"] == "core":
+            heads = _sections(l2.read_text(encoding="utf-8"), 2)
+            if not re.search(r"^- \S", heads.get("Aggregates and invariants", ""), re.M):
+                warns.append(f"core context {ctx} lists no aggregates or invariants")
+    for ctx in ownership:
+        if ctx not in contexts and ctx not in (SHARED, PLATFORM):
+            fails.append(f"ownership.json names {ctx!r}, which is not a context in l1-context.md")
+    names = [c for c in ownership if c != SHARED]
+    for i, a in enumerate(names):
+        for b in names[i + 1:]:
+            clash = [(x, y) for x in ownership[a] for y in ownership[b] if globs_overlap(x, y)]
+            if clash:
+                fails.append(f"ownership overlap: {a} `{clash[0][0]}` and {b} `{clash[0][1]}`")
+    if brownfield:
+        for ctx, globs in ownership.items():
+            for g in globs:
+                pre = glob_prefix(g)
+                if pre and not (fac.root / pre).exists():
+                    fails.append(f"ownership.json: {ctx} path `{g}` does not exist")
+    # glossary: `- **Term** (<ctx>): definition. Avoid: a, b`
+    gl = dom / "glossary.md"
+    if not gl.exists():
+        fails.append("docs/domain/glossary.md is missing")
+    else:
+        seen = set()
+        for line in gl.read_text(encoding="utf-8").splitlines():
+            if not line.startswith("- "):
+                continue
+            m = re.match(rf"- \*\*(.+?)\*\*\s*\(({CTX_ID})\):\s*\S", line)
+            if not m:
+                fails.append(f"glossary line must be `- **Term** (<context>): definition`: {line[:60]!r}")
+                continue
+            term, ctx = m.group(1).strip(), m.group(2)
+            if ctx not in contexts:
+                fails.append(f"glossary term {term!r} is owned by {ctx}, which is not a context")
+            if (term.lower(), ctx) in seen:
+                fails.append(f"glossary term {term!r} is defined twice in {ctx}")
+            seen.add((term.lower(), ctx))
+    if len(contexts) > 7:
+        warns.append(f"{len(contexts)} contexts; more than about 7 is a lot for a first release")
+    return contexts
+
+
+def _check_containers(fac, arch, contexts, fails):
+    """`## Containers` in architecture.md: `- <name>: hosts <ctx>[, <ctx>] ...`, every context hosted somewhere."""
+    body = _sections(arch, 2).get("Containers")
+    if body is None:
+        fails.append("no `## Containers` section (each deployable unit and the context(s) it hosts)")
+        return
+    hosted = set()
+    for line in body.splitlines():
+        m = re.match(r"- (.+?):\s*hosts\s+(.+)$", line)
+        if not m:
+            if line.startswith("- "):
+                fails.append(f"container line must be `- <name>: hosts <context>[, <context>]`: {line[:60]!r}")
+            continue
+        ids = re.findall(CTX_ID, m.group(2).split(" - ")[0].split(";")[0])
+        ids = [i for i in ids if i in contexts or i in (PLATFORM, SHARED)]
+        if not ids:
+            fails.append(f"container {m.group(1)!r} hosts no known context")
+        hosted.update(ids)
+    for ctx in contexts:
+        if ctx not in hosted:
+            fails.append(f"context {ctx} is not hosted by any container")
+
+
+def _check_context_tags(fac, contexts, fails, only_unchecked=False):
+    ok = set(contexts) | {PLATFORM}
+    epics = fac.root / "docs" / "epics.md"
+    if epics.exists():
+        for b in re.split(r"^(?=## E\d+)", epics.read_text(encoding="utf-8"), flags=re.M):
+            m = re.match(r"## (E\d+)", b)
+            if not m:
+                continue
+            c = re.search(r"^Context:\s*(\S+)\s*$", b, re.M)
+            if not c:
+                fails.append(f"{m.group(1)}: no `Context: <context>` line")
+            elif c.group(1) not in ok:
+                fails.append(f"{m.group(1)}: context {c.group(1)!r} is not in l1-context.md (or {PLATFORM})")
+    items = backlog_items(fac)
+    counted = [i for i in items if not (only_unchecked and i["checked"])]
+    for i in counted:
+        if i["ctx"] is None:
+            fails.append(f"{i['id']}: no `[ctx:<context>]` tag")
+        elif i["ctx"] not in ok:
+            fails.append(f"{i['id']}: context {i['ctx']!r} is not in l1-context.md (or {PLATFORM})")
+    tagged = [i for i in items if i["ctx"]]
+    if tagged and sum(1 for i in tagged if i["ctx"] == PLATFORM) / len(tagged) > PLATFORM_CAP:
+        fails.append(f"more than {int(PLATFORM_CAP * 100)}% of backlog items are {PLATFORM}; move domain work "
+                     f"into its context")
+
+
 def cmd_plan_check(fac, args):
     """Gate for a planner pass: the documents have the sections and labels the human approves against."""
     docs = fac.root / "docs"
     pass_ = str(args.pass_).upper()
-    if pass_ not in ("2", "3", "DOC"):
-        raise Refused("plan-check runs after pass 2, 3 or DOC")
-    fails, assumed = [], []
+    if pass_ not in ("2A", "2", "3", "DOC"):
+        raise Refused("plan-check runs after pass 2A, 2, 3 or DOC")
+    fails, assumed, warns = [], [], []
+    contexts = {}
+    if pass_ == "2A" or (pass_ == "DOC" and has_domain(fac)) or (has_domain(fac) and pass_ in ("2", "3")):
+        contexts = _check_domain(fac, fails, warns, brownfield=pass_ == "DOC")
 
     def read(path):
         try:
@@ -1342,26 +1662,34 @@ def cmd_plan_check(fac, args):
     if not args.feature and (docs / "vision.md").exists():
         brief_text += (docs / "vision.md").read_text(encoding="utf-8")
     accelerator = bool(re.search(r"\baccelerator\b", brief_text, re.I))
-    if pass_ in ("2", "DOC"):
+    if pass_ == "2A":
+        pass
+    elif pass_ in ("2", "DOC"):
         arch, decisions = read(docs / "architecture.md"), read(docs / "decisions.md")
+        if contexts and not args.feature:
+            _check_containers(fac, arch, contexts, fails)
         if args.feature:
             section = _sections(arch, 2).get(f"Feature: {args.feature}")
             if section is None:
                 fails.append(f"architecture.md has no `## Feature: {args.feature}` section")
             else:
                 _check_architecture(section, 3, accelerator, fails)
-            assumed = _check_decisions(decisions, fails, only_feature=args.feature)
+            assumed = _check_decisions(decisions, fails, only_feature=args.feature, contexts=contexts)
         else:
             if arch:
                 _check_architecture(arch, 2, accelerator, fails, doc=pass_ == "DOC")
                 _check_commands(arch, fails, allow_none=pass_ == "DOC")
             if decisions:
-                assumed = _check_decisions(decisions, fails, doc=pass_ == "DOC")
+                assumed = _check_decisions(decisions, fails, doc=pass_ == "DOC", contexts=contexts)
     else:
         _check_backlog(fac, fails)
+        if contexts:
+            _check_context_tags(fac, contexts, fails, only_unchecked=bool(args.feature))
     label = ("FEATURE " + args.feature + " " if args.feature else "") + "PASS " + pass_
     for f in fails:
         print(f"FAIL {f}")
+    for w in warns:
+        print(f"WARN {w}")
     if assumed:
         print("ASSUMED (show these to the human at the gate): " + "; ".join(assumed))
     print(f"{label}: {'ok' if not fails else str(len(fails)) + ' problem(s)'}")
@@ -1392,7 +1720,9 @@ def backlog_items(fac):
         item_id = idm.group(1) if idm else f"B{pos}"
         dep = re.search(r"\(depends:\s*([^)]*)\)", text)
         deps = re.findall(r"B\d+", dep.group(1)) if dep else []
-        items.append({"id": item_id, "checked": m.group(1) == "x", "deps": deps, "text": text})
+        ctx = re.search(r"\[ctx:([A-Za-z0-9_-]+)\]", text)
+        items.append({"id": item_id, "checked": m.group(1) == "x", "deps": deps, "text": text,
+                      "ctx": ctx.group(1) if ctx else None})
     return items
 
 
@@ -1732,7 +2062,7 @@ def main(argv=None):
         p = sub.add_parser(name, help=text)
         p.add_argument("--role", required=True, choices=ROLES)
         p.add_argument("--job")
-        p.add_argument("--pass", dest="pass_", help="planner pass: 1, 2, 3 or DOC")
+        p.add_argument("--pass", dest="pass_", help="planner pass: 1, 2A, 2, 3 or DOC")
         p.add_argument("--feature", help="planner: the feature plan's slug")
     p = sub.add_parser("worktree", help="the job's own worktree outside the project: create (idempotent, repairs), "
                                         "validate, remove (clean and finished only)")
@@ -1747,7 +2077,7 @@ def main(argv=None):
     p.add_argument("--action-id")
     p = sub.add_parser("plan-check", help="after a planner pass: required sections, exact commands, decision labels, "
                                           "backlog ids (read-only)")
-    p.add_argument("--pass", dest="pass_", required=True, help="2, 3 or DOC")
+    p.add_argument("--pass", dest="pass_", required=True, help="2A (domain), 2, 3 or DOC")
     p.add_argument("--feature", help="the feature plan's slug")
     p = sub.add_parser("fresh", help="exit 0 if the job's verification still holds")
     p.add_argument("id")
